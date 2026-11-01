@@ -7,6 +7,7 @@
 |---|---|
 | SPICE 模型 | ✅ v2（6N1 / 6N2 擬合、6P3S-E/6P3P 用 Koren 6L6GC） |
 | 單聲道 LTspice 模擬 | ✅ v1（理想 400 V 電源） |
+| 模擬圖表 | ✅ 7 張（`docs/figures/`） |
 | PSUD2 電源模擬 | ⬜ 待 PT 實測後進行 |
 | 變壓器實測 | ⬜ |
 | 管座改線 | ⬜ |
@@ -80,6 +81,47 @@
 **模擬結果**：增益 24.8 倍、頻寬 7.6 Hz – 56 kHz（無峰值）、0.45 % THD 時約 27 W、全功率靈敏度約 0.42 Vrms。
 實機預估約 20 W（PT 壓降，且模型電流偏高約 10 %）。
 
+### 4.1 模擬圖表
+
+所有圖都由 `tools/make_figures.py` 從 `models/tubes_amp.inc` 與 `simulations/ltspice/amp_channel_v1.cir` 自動產生（ngspice），改了電路後重跑即可更新。
+
+#### 各級工作點
+
+| V1 – 6N2 | V2 – 6N1 長尾對 |
+|---|---|
+| ![6N2 plate curves](docs/figures/fig1_6N2_plate.png) | ![6N1 plate curves](docs/figures/fig2_6N1_plate.png) |
+| 330k 負載線，Q 點 149 V / 0.63 mA，偏壓約 −1 V。直耦到長尾對，所以屏壓刻意壓低。 | 每邊 143 V / 5.1 mA，偏壓 −2.1 V，離屏耗上限很遠。 |
+
+![6P3S-E plate curves](docs/figures/fig3_6P3S-E_plate.png)
+
+V3/V4 – 6P3S-E：靜態點 397 V / 34.4 mA（13.7 W，約額定 67 %），B 類負載線 Raa/4 = 1.5 kΩ。
+
+#### 頻率響應與負迴授
+
+![Frequency response](docs/figures/fig4_freq_response.png)
+
+開迴路約 48 dB；加 2.7 kΩ 迴授後約 28 dB（約 20 dB 迴授），但 130 kHz 附近出現 +4.7 dB 的峰。並聯 1 nF 相位超前電容後峰值消失，頻寬 7.6 Hz – 56 kHz。
+
+#### 失真與輸出功率：固定偏壓 vs 自給偏壓
+
+![THD vs power](docs/figures/fig5_thd_vs_power.png)
+
+固定偏壓到約 27 W 前 THD 都在 0.1 % 左右；自給偏壓約 11 W 就超過 1 %。這是本設計採用固定偏壓的主要依據。
+
+#### 波形與驅動餘裕
+
+![Waveforms](docs/figures/fig6_waveforms.png)
+
+約 19 W 輸出時，兩支功率管柵極擺幅約 −80 ~ −5 V，仍未進入正柵，代表 6N1 長尾對還有驅動餘裕。
+
+#### 偏壓調整曲線
+
+![Bias sweep](docs/figures/fig7_bias_sweep.png)
+
+模型中 −42 V 對應 34 mA；約 −38 V 就會碰到 20 W 屏耗上限。實機請每管個別調整，見 §7.4。
+
+> ⚠️ 以上皆為模擬：電源為理想 400 V（未含 PT 壓降），6L6 模型電流偏高約 10 %，OPT 參數為假設值。實測數據回填後應重新產生。
+
 ## 5. 目錄結構
 
 ```
@@ -90,9 +132,11 @@ mc34b-6p3s-mod/
 │   └── psud2/              .psu 電源模擬
 ├── docs/
 │   ├── datasheets/         真空管 datasheet
+│   ├── figures/            模擬圖表（tools/make_figures.py 產生）
 │   ├── measurements/       實測紀錄、示波器截圖
 │   └── photos/             改裝前後照片
 ├── layout/                 搭棚 / 端子板配線圖
+├── tools/                  make_figures.py（重新產生 docs/figures）
 ├── setup-repo.ps1          一鍵建立目錄結構
 ├── .gitignore
 └── README.md
@@ -104,6 +148,15 @@ mc34b-6p3s-mod/
 2. 波形視窗加入 `V(out)`；THD 與功率結果在 **View → SPICE Error Log**。
 3. 參數都集中在網表上方的 `.param` 區塊；可用 `.step param VB list -38 -42 -46` 掃描偏壓。
 4. `curves_*.cir` 用來畫各管的屏極特性曲線，檢查模型是否合理。
+
+
+**重新產生圖表**（需要 [ngspice](https://ngspice.sourceforge.io/) 與 Python 的 numpy、matplotlib）：
+
+```powershell
+pip install numpy matplotlib
+python tools/make_figures.py            # 全部
+python tools/make_figures.py fig4 fig5  # 只更新部分
+```
 
 ---
 
