@@ -1,0 +1,7 @@
+* Plate curves 6N1  -- run, then plot -I(Va)
+.include ../../models/tubes_amp.inc
+X1 a g 0 6N1
+Va a 0 250
+Vg g 0 0
+.dc Va 0 400 2 Vg -8 0 1
+.end

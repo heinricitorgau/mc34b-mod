@@ -1,0 +1,8 @@
+* Plate curves 6P3S-E, Vg2 = 250V  -- plot -I(Va) and -I(Vg2)
+.include ../../models/tubes_amp.inc
+X1 a g2 g 0 6P3S-E
+Va a 0 250
+Vg2 g2 0 250
+Vg g 0 -14
+.dc Va 0 500 2 Vg -35 0 5
+.end

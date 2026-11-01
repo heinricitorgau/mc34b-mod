@@ -1,0 +1,8 @@
+* 6P3S-E triode-connected (G2 tied to A via 100R)  -- plot -I(Va)
+.include ../../models/tubes_amp.inc
+X1 a g2 g 0 6P3S-E
+R2 a g2 100
+Va a 0 250
+Vg g 0 -30
+.dc Va 0 450 2 Vg -60 0 10
+.end

@@ -1,0 +1,95 @@
+* =====================================================================
+*  amp_channel_v1.cir  --  one channel, LTspice
+*  6N2 (V1) -> DC-coupled 6N1 LTP -> 2x 6P3S-E PP, UL, fixed bias
+*  OPT 6k p-p / 43% UL / 4 ohm ; B+ 400V ; global NFB 2.7k||1n
+*  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v2).
+*  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-42V,
+*  gain 24.8x (~20 dB NFB), -3 dB 7.6 Hz - 56 kHz, ~27 W @ 0.45% THD
+* =====================================================================
+.include ../../models/tubes_amp.inc
+.options plotwinsize=0 numdgt=7
+* ---- design parameters (edit here) --------------------------------
+.param VB=-42        ; fixed bias, trim per tube on the real amp
+.param RKO=1 CKO=1p  ; 1R cathode sense (fixed bias). Cathode-bias test: RKO=1.1k CKO=220u VB=0
+.param RD1=1k RD2=47k
+.param RA1=330k RK2=1.5k
+.param RT=15k RLA=18k RLB=18.82k
+.param RFB=2.7k CFB=1n
+.param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
+* ---- power supply (ideal for v1; replace with PSUD2-derived model later)
+VBP bp0 0 400
+RBP bp0 bp 15
+RD1 bp b2 {RD1}
+CD1 b2 0 47u
+RD2 b2 b3 {RD2}
+CD2 b3 0 47u
+VBIAS bias 0 {VB}
+* ---- V1 : 6N2 (one triode), DC-coupled to LTP
+Rin in ing 1k
+Rgl ing 0 470k
+X1 v1a ing v1k 6N2
+RA1 b3 v1a {RA1}
+RK1 v1k fb 100
+RK2 fb 0 {RK2}
+CK2 fb 0 220u
+* Note: NFB injected at v1k, unbypassed part = RK1
+RFB out v1k {RFB}
+CFB out v1k {CFB}
+* ---- LTP : 6N1 both triodes
+X3 la v1a lk 6N1
+X4 lb lg2 lk 6N1
+RG2 v1a lg2 1Meg
+CG2 lg2 0 0.47u
+RT lk 0 {RT}
+RLA b2 la {RLA}
+RLB b2 lb {RLB}
+* ---- coupling + fixed bias
+CCA la ga 0.22u
+CCB lb gb 0.22u
+RGA ga bias 100k
+RGB gb bias 100k
+* ---- output: 6P3S-E pair, UL, fixed bias
+RSA ga gsa 1.5k
+RSB gb gsb 1.5k
+X5 pa sa gsa ka 6P3S-E
+X6 pb sb gsb kb 6P3S-E
+RG2A ula sa 1k
+RG2B ulb sb 1k
+RKA ka 0 {RKO}
+CKA ka 0 {CKO}
+RKB kb 0 {RKO}
+CKB kb 0 {CKO}
+* ---- OPT 6k p-p, 43% UL, Lp(total)=4*LH=40H, coupling KC (leakage ~ 4*LH*(1-KC^2)), 4 ohm sec
+.param LH=10 TU=0.43 KC=0.9995
+* winding DCRs as explicit resistors (portable LTspice/ngspice)
+L1 pa n1 {LH*(1-TU)*(1-TU)}
+R1W n1 ula 35
+L2 ula n2 {LH*TU*TU}
+R2W n2 bp 25
+L3 bp n3 {LH*TU*TU}
+R3W n3 ulb 25
+L4 ulb n4 {LH*(1-TU)*(1-TU)}
+R4W n4 pb 35
+L5 0 n5 {4*LH/1500}
+R5W n5 out 0.25
+K12 L1 L2 {KC}
+K13 L1 L3 {KC}
+K14 L1 L4 {KC}
+K15 L1 L5 {KC}
+K23 L2 L3 {KC}
+K24 L2 L4 {KC}
+K25 L2 L5 {KC}
+K34 L3 L4 {KC}
+K35 L3 L5 {KC}
+K45 L4 L5 {KC}
+RLOAD out 0 4
+* ---- stimulus & analysis -------------------------------------------
+VIN in 0 SIN(0 {AMP} 1k) AC 1
+.tran 0 200m 150m 10u
+.four 1k 9 V(out)
+.meas TRAN Vrms RMS V(out) FROM 150m TO 200m
+.meas TRAN Pout PARAM Vrms*Vrms/4
+* For frequency response: comment .tran/.four/.meas lines, enable:
+* .ac dec 50 1 1Meg
+* Variations: .step param VB list -38 -42 -46   /  .step param KC list 0.998 0.9995
+.end

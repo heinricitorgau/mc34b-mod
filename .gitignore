@@ -1,0 +1,55 @@
+# =====================================================================
+#  mc34b-6p3s-mod  .gitignore
+#  Rule of thumb: commit what a human wrote (.asc .cir .inc .asy .psu
+#  .plt), ignore what a simulator regenerates.
+# =====================================================================
+
+# ---------- LTspice : waveform / result files (large, regenerated) ----
+*.raw
+*.op.raw
+*.qraw
+*.fft
+*.log
+*.mout
+# auto-generated netlist from a schematic (.asc). Hand-written
+# netlists in this repo use .cir, so they are NOT affected.
+*.net
+# LTspice backups / temp
+*.bak
+*.asc.bak
+*.tmp
+
+# ---------- ngspice (used for cross-checking models) ------------------
+*.out
+.spiceinit
+
+# ---------- PSUD2 ------------------------------------------------------
+# Keep *.psu (the design). Ignore backups / CSV exports if you make them.
+*.psu.bak
+psud2_export*.csv
+
+# ---------- Windows ---------------------------------------------------
+Thumbs.db
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+$RECYCLE.BIN/
+*.lnk
+*.stackdump
+
+# ---------- OneDrive / Office lock files ------------------------------
+~$*
+.~lock.*#
+
+# ---------- macOS -----------------------------------------------------
+.DS_Store
+._*
+.Spotlight-V100
+.Trashes
+
+# ---------- Editors ---------------------------------------------------
+*.swp
+*~
+.vscode/*
+!.vscode/settings.json
+.idea/

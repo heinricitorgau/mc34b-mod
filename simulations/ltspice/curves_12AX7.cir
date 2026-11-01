@@ -1,0 +1,7 @@
+* Plate curves 12AX7  -- run, then plot -I(Va)
+.include ../../models/tubes_amp.inc
+X1 a g 0 12AX7
+Va a 0 250
+Vg g 0 0
+.dc Va 0 400 2 Vg -3 0 0.5
+.end
