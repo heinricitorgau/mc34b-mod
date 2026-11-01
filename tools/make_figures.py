@@ -59,14 +59,18 @@ NGSPICE = shutil.which("ngspice_con") or shutil.which("ngspice")
 if not NGSPICE:
     sys.exit("ngspice not found on PATH (Windows: add the folder containing ngspice_con.exe)")
 
-def ngspice(netlist):
+def ngspice(netlist, timeout=180):
     with tempfile.TemporaryDirectory() as d:
         f = os.path.join(d, "x.sp")
         with open(f, "w") as fh:
             fh.write(netlist)
         with open(os.path.join(d, ".spiceinit"), "w") as fh:
             fh.write("set ngbehavior=ltpsa\n")
-        r = subprocess.run([NGSPICE, "-b", f], capture_output=True, text=True, cwd=d)
+        try:
+            r = subprocess.run([NGSPICE, "-b", f], capture_output=True, text=True,
+                               cwd=d, timeout=timeout)
+        except subprocess.TimeoutExpired:
+            return "", d          # caller retries with a stiffer solver
         return r.stdout + r.stderr, d
 
 
@@ -99,6 +103,22 @@ def channel(**over):
     return txt
 
 
+def channel_op(**over):
+    """DC operating point of the full closed-loop channel -> {node: volts}."""
+    nodes = ["b2", "b3", "v1a", "v1k", "lk", "la", "lb", "ka", "pa"]
+    o, _ = ngspice(channel(**over) + "VIN in 0 0\n.control\nop\n" +
+                   "".join(f"print v({n})\n" for n in nodes) + ".endc\n.end\n")
+    return {n: float(re.search(rf"v\({n}\) = (\S+)", o).group(1)) for n in nodes}
+
+
+def param(name):
+    txt = open(CIR, encoding="utf-8").read()
+    v = re.search(rf"\b{name}=(\S+)", txt).group(1)
+    mult = {"k": 1e3, "meg": 1e6, "m": 1e-3, "u": 1e-6, "n": 1e-9, "p": 1e-12}
+    m = re.match(r"([-\d.e+]+)([a-z]*)", v.lower())
+    return float(m.group(1)) * mult.get(m.group(2), 1)
+
+
 def tran_point(amp, **over):
     """One 1 kHz tone: returns (Pout W, THD %)."""
     settle = 0.6 if over.get("RKO", "1") != "1" else 0.12
@@ -106,7 +126,8 @@ def tran_point(amp, **over):
     net = (f"{body}.control\ntran 10u {settle+0.02} {settle} 10u\n"
            f"fourier 1k v(out)\nmeas tran vr rms v(out) from={settle} to={settle+0.02}\n"
            ".endc\n.end\n")
-    for opts in ("", ".options method=gear reltol=2e-3\n"):
+    for opts in ("", ".options method=gear reltol=2e-3\n",
+                 ".options method=gear reltol=5e-3 itl4=200\n"):
         o, _ = ngspice(net.replace(".control", opts + ".control", 1))
         m1, m2 = re.search(r"THD: (\S+)", o), re.search(r"vr\s+=\s+(\S+)", o)
         if m1 and m2:
@@ -147,10 +168,15 @@ def fig1():
     c = plate_family("6N2", "a g 0 6N2", vgs, 400)
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     draw_family(ax, c, 2.5)
-    B3, R = 358.4, 330e3 + 1.6e3
-    ax.plot([0, B3], [B3 / R * 1e3, 0], color=C2, lw=2, label="DC load line 330k (B3 = 358 V)")
-    ax.plot([148.9], [0.63], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
-    ax.annotate("Q: 149 V, 0.63 mA, Vgk -1.0 V", (148.9, 0.63), (175, 1.15),
+    op = channel_op()
+    B3, RA1 = op["b3"], param("RA1")
+    ia = (B3 - op["v1a"]) / RA1 * 1e3
+    vak = op["v1a"] - op["v1k"]
+    i0 = ia * B3 / (B3 - vak)            # DC load line through (B3, 0) and Q
+    ax.plot([0, B3], [i0, 0], color=C2, lw=2,
+            label=f"DC load line {RA1/1e3:g}k (B3 = {B3:.0f} V)")
+    ax.plot([vak], [ia], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
+    ax.annotate(f"Q: {vak:.0f} V, {ia:.2f} mA, Vgk {-op['v1k']:.2f} V", (vak, ia), (vak + 30, ia + 0.55),
                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1), fontsize=9.5)
     ax.set_title("V1  6N2 plate curves & operating point", pad=18)
     ax.set( xlabel="Plate-cathode voltage (V)",
@@ -166,8 +192,11 @@ def fig2():
     draw_family(ax, c, 20)
     v = np.linspace(60, 400, 200)
     ax.plot(v, 2.2 / v * 1e3, color=C4, lw=2, ls="--", label="Pa = 2.2 W / section (check datasheet)")
-    ax.plot([143.2], [5.07], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
-    ax.annotate("Q (each LTP triode): 143 V, 5.1 mA, Vgk -2.1 V", (143.2, 5.07), (160, 16.5),
+    op = channel_op()
+    ia = (op["b2"] - op["la"]) / param("RLA") * 1e3
+    vak, vgk = op["la"] - op["lk"], op["v1a"] - op["lk"]
+    ax.plot([vak], [ia], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
+    ax.annotate(f"Q (each LTP triode): {vak:.0f} V, {ia:.1f} mA, Vgk {vgk:.1f} V", (vak, ia), (160, 16.5),
                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1), fontsize=9.5)
     ax.set_title("V2  6N1 plate curves & LTP operating point", pad=18)
     ax.set( xlabel="Plate-cathode voltage (V)",

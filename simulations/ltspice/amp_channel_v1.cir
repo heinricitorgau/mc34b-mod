@@ -4,6 +4,7 @@
 *  OPT 6k p-p / 43% UL / 4 ohm ; B+ 400V ; global NFB 2.7k||1n
 *  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v2).
 *  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-42V,
+*  V1 0.65 mA / Vgk -0.90 V, LTP 4.9 mA per side (closed-loop DC point),
 *  gain 24.8x (~20 dB NFB), -3 dB 7.6 Hz - 56 kHz, ~27 W @ 0.45% THD
 * =====================================================================
 .include ../../models/tubes_amp.inc
@@ -12,7 +13,7 @@
 .param VB=-42        ; fixed bias, trim per tube on the real amp
 .param RKO=1 CKO=1p  ; 1R cathode sense (fixed bias). Cathode-bias test: RKO=1.1k CKO=220u VB=0
 .param RD1=1k RD2=47k
-.param RA1=330k RK2=1.5k
+.param RA1=330k RK2=2.7k   ; 2.7k: DC path via RFB is in parallel, Vgk ~ -0.9 V
 .param RT=15k RLA=18k RLB=18.82k
 .param RFB=2.7k CFB=1n
 .param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
