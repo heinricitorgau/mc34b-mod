@@ -16,7 +16,7 @@
 .param RT=15k RLA=18k RLB=18.82k
 .param RFB=2.7k CFB=1n
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
-.param LH=10 TU=0.43 KC=0.9995
+.param LH=10 TU=0.43 KC=0.9995 RAA=6k   ; half-primary L (H), UL tap, coupling, primary Z (plate-plate)
 .param VB={VBN*MAINS}
 * ---- supply parameters (from psu_v1.cir) ----
 .param MAINS=1.0       ; mains factor: 0.9 / 1.0 / 1.1  (99 / 110 / 121 V)
@@ -94,7 +94,7 @@ L3 bp n3 {LH*TU*TU}
 R3W n3 ulb 25
 L4 ulb n4 {LH*(1-TU)*(1-TU)}
 R4W n4 pb 35
-L5 0 n5 {4*LH/1500}
+L5 0 n5 {16*LH/RAA}
 R5W n5 out 0.25
 K12 L1 L2 {KC}
 K13 L1 L3 {KC}

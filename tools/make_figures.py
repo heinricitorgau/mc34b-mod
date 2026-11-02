@@ -131,7 +131,7 @@ def tran_point(amp, **over):
            ".endc\n.end\n")
     for opts in ("", ".options method=gear reltol=2e-3\n",
                  ".options method=gear reltol=5e-3 itl4=200\n"):
-        o, _ = ngspice(net.replace(".control", opts + ".control", 1))
+        o, _ = ngspice(net.replace(".control", opts + ".control", 1), timeout=40)  # normal run ~2 s
         m1, m2 = re.search(r"THD: (\S+)", o), re.search(r"vr\s+=\s+(\S+)", o)
         if m1 and m2:
             vr = float(m2.group(1))
@@ -322,7 +322,7 @@ def build_stereo():
     lines = [l for l in body.split("\n")
              if l.strip() and not re.match(r"(?i)^(\.param|VBP\b|RBP\b|\* ---- power supply)", l)]
     params = [re.sub(r"^\.param VB=(\S+)", r".param VBN=\1", p) for p in params]
-    params = [p for p in params if not p.startswith(".param AMP=")]
+    params = [p for p in params if not p.startswith((".param AMP=", ".param VBPLUS="))]  # B+ comes from psu_v1
     psu = open(PSU, encoding="utf-8").read().replace("\r\n", "\n")
     pparams = [p for p in re.findall(r"(?m)^\.param .*$", psu) if "ILOAD" not in p]
     pcirc = psu.split("* ---- transformer", 1)[1].split("* ---- load", 1)[0]
@@ -477,9 +477,190 @@ def fig10():
     save(fig, "fig10_psu_thd_sag.png",
          "Bias held at -42 V (mains nominal). Sag lowers clipping power; below clipping the curves match.")
 
+# ---------------------------------------------------------------- sensitivity (B+, OPT)
+DATA = os.path.join(ROOT, "docs", "data")
+
+
+def write_csv(name, header, rows):
+    os.makedirs(DATA, exist_ok=True)
+    with open(os.path.join(DATA, name), "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(",".join(header) + "\n")
+        for r in rows:
+            fh.write(",".join(f"{v:.6g}" if isinstance(v, float) else str(v) for v in r) + "\n")
+    print("  wrote docs/data/" + name)
+
+
+def p_at_thd(limit=1.0, lo=0.2, hi=1.2, iters=7, **over):
+    """Largest 1 kHz output (W) with THD <= limit %, by bisection on input level."""
+    best = 0.0
+    for _ in range(iters):
+        mid = 0.5 * (lo + hi)
+        r = tran_point(mid, **over)
+        if r and r[1] <= limit:
+            lo, best = mid, r[0]
+        else:
+            hi = mid
+    return best
+
+
+def thd_at_power(p_target=10.0, **over):
+    """THD % at a given output power, interpolated from two levels (P ~ amp^2)."""
+    r1 = tran_point(0.3, **over)
+    if not r1:
+        return float("nan")
+    amp = 0.3 * np.sqrt(p_target / r1[0])
+    r2 = tran_point(amp, **over)
+    return r2[1] if r2 else float("nan")
+
+
+def read_csv(name):
+    import csv
+    with open(os.path.join(DATA, name), encoding="utf-8") as fh:
+        return list(csv.DictReader(fh))
+
+
+ZOBEL = "RZ out nz 4.7\nCZ nz 0 100n\n"      # candidate fix, see README section 4.3
+
+
+def ac_curve(extra="", **over):
+    d = ng_wrdata(channel(**over) + extra + "VIN in 0 AC 1\n", "ac dec 100 0.5 5e6", ["vdb(out)"])
+    f, g = d[:, 0], d[:, 1]
+    return f, g - np.interp(3.0, np.log10(f), g)
+
+
+def ac_metrics(extra="", **over):
+    """Gain @1 kHz, -3 dB points, peaking (dB, re 1 kHz) and damping factor into 4 ohm."""
+    d = ng_wrdata(channel(**over) + extra + "VIN in 0 AC 1\n", "ac dec 100 0.5 5e6", ["vm(out)"])
+    f, g = d[:, 0], d[:, 1]
+    g1k = np.interp(3.0, np.log10(f), g)
+    db = 20 * np.log10(g / g1k)
+    lo, hi = f < 1e3, f > 1e3
+    flo = f[lo][db[lo] < -3].max() if np.any(db[lo] < -3) else float("nan")
+    fhi = f[hi][db[hi] < -3].min() if np.any(db[hi] < -3) else float("nan")
+    k = np.argmax(np.where(f > 5e3, db, -1e9))
+    z = np.atleast_2d(ng_wrdata(channel(**over) + extra + "VIN in 0 0\nIZ 0 out AC 1\n",
+                                "ac lin 1 1k 1k", ["vm(out)"]))[0, 1]
+    zout = 1 / (1 / z - 1 / 4.0)
+    return dict(gain=g1k, flo=flo, fhi=fhi, pk_lo=max(db[f < 200].max(), 0.0),
+                pk_hi=db[k], f_pk=f[k], zout=zout, df=4.0 / zout)
+
+
+def _bottom_legend(fig, handles, labels, ncol):
+    fig.legend(handles, labels, loc="lower center", ncol=ncol, bbox_to_anchor=(0.5, 0.0))
+    fig.tight_layout(rect=(0, 0.1, 1, 1))
+
+
+def fig11():
+    """B+ sensitivity, single channel, ideal supply; fixed vs tracking bias."""
+    bps = [360, 370, 380, 390, 400, 410, 420, 430, 440]
+    modes = [("Bias fixed at -42 V", lambda b: -42.0),
+             ("Bias scales with B+ (-42 V x B+/400)", lambda b: -42.0 * b / 400)]
+    rows = []
+    for lab, vbf in modes:
+        def one(b):
+            ov = dict(VBPLUS=b, VB=f"{vbf(b):.3f}")
+            op = channel_op(**ov)
+            return (lab, b, vbf(b), op["ka"] * 1e3, op["ka"] * op["pa"],
+                    p_at_thd(**ov), thd_at_power(10.0, **ov))
+        with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+            rows += list(ex.map(one, bps))
+    write_csv("fig11_bplus_sweep.csv", ["bias_mode", "Bplus_V", "Vg_V", "Ik_mA", "Pa_W", "P_1pct_W", "THD_10W_pct"], rows)
+    plot_fig11()
+
+
+def plot_fig11():
+    rows = read_csv("fig11_bplus_sweep.csv")
+    fig, axs = plt.subplots(1, 3, figsize=(12.6, 4.4))
+    hs = []
+    for lab, col in [("Bias fixed at -42 V", C1), ("Bias scales with B+ (-42 V x B+/400)", C2)]:
+        r = np.array([[float(x[k]) for k in ("Bplus_V", "Pa_W", "P_1pct_W", "THD_10W_pct")]
+                      for x in rows if x["bias_mode"] == lab])
+        for ax, k in zip(axs, (1, 2, 3)):
+            h, = ax.plot(r[:, 0], r[:, k], "o-", color=col, ms=5, mec=SURF, mew=1)
+        hs.append(h)
+    axs[0].axhline(20.5, color=C4, lw=2, ls="--")
+    axs[0].text(361, 21.2, "6P3S-E rating 20.5 W", color=INK2, fontsize=9)
+    axs[0].set(title="Idle plate dissipation", xlabel="B+ (V)", ylabel="Pa per tube (W)", ylim=(0, 28))
+    axs[1].set(title="Max power at 1 % THD", xlabel="B+ (V)", ylabel="Output power (W)", ylim=(0, 40))
+    axs[2].set(title="THD at 10 W", xlabel="B+ (V)", ylabel="THD (%)", ylim=(0, 0.4))
+    _bottom_legend(fig, hs, ["Bias fixed at -42 V", "Bias scales with B+ (-42 V x B+/400)"], 2)
+    save(fig, "fig11_bplus_sensitivity.png",
+         "Single channel, ideal B+ source, 6 k / 43 % UL OPT, 4 ohm. Data: docs/data/fig11_bplus_sweep.csv")
+
+
+FIG12_TU = [0.2, 0.3, 0.43, 0.55]
+
+
+def fig12():
+    """OPT primary impedance x UL tap: power, THD and damping factor."""
+    jobs = [(r, t) for t in FIG12_TU for r in [4000, 5000, 6000, 6600, 8000]]
+
+    def one(j):
+        r, t = j
+        ov = dict(RAA=r, TU=t)
+        m = ac_metrics(**ov)
+        return r, t, p_at_thd(**ov), thd_at_power(10.0, **ov), m["df"], m["gain"], m["pk_hi"]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        rows = list(ex.map(one, jobs))
+    write_csv("fig12_opt_raa_ul.csv", ["Raa_ohm", "UL_tap", "P_1pct_W", "THD_10W_pct", "damping_factor", "gain", "hf_peak_dB"], rows)
+    plot_fig12()
+
+
+def plot_fig12():
+    res = np.array([[float(v) for v in x.values()] for x in read_csv("fig12_opt_raa_ul.csv")])
+    fig, axs = plt.subplots(1, 3, figsize=(12.6, 4.4))
+    hs, labs = [], []
+    for t, col in zip(FIG12_TU, [C1, C2, C3, C4]):
+        r = res[np.isclose(res[:, 1], t)]
+        for ax, k in zip(axs, (2, 3, 4)):
+            h, = ax.plot(r[:, 0] / 1e3, r[:, k], "o-", color=col, ms=5, mec=SURF, mew=1)
+        hs.append(h); labs.append(f"UL tap {t*100:.0f} %" + ("  (v1)" if t == 0.43 else ""))
+    for ax in axs:
+        ax.axvspan(5, 6.6, color=GRID, alpha=0.5, lw=0)
+    axs[0].text(5.8, 2, "likely MC34-B\nrange", ha="center", color=INK2, fontsize=8.5)
+    axs[0].set(title="Max power at 1 % THD", xlabel="OPT primary (k ohm, p-p)", ylabel="Output power (W)", ylim=(0, None))
+    axs[1].set(title="THD at 10 W", xlabel="OPT primary (k ohm, p-p)", ylabel="THD (%)", ylim=(0, None))
+    axs[2].set(title="Damping factor at 1 kHz", xlabel="OPT primary (k ohm, p-p)", ylabel="4 ohm / Zout", ylim=(0, None))
+    _bottom_legend(fig, hs, labs, 4)
+    save(fig, "fig12_opt_raa_ul.png",
+         "B+ 400 V ideal, bias -42 V, NFB 2.7k || 1n unchanged. Data: docs/data/fig12_opt_raa_ul.csv")
+
+
+def fig13():
+    """OPT primary inductance and coupling: closed-loop response, LF and HF."""
+    fig, axs = plt.subplots(1, 3, figsize=(13.2, 4.4))
+    rows = []
+    lhs = [(2.5, C1), (5, C2), (10, C3), (20, C4)]
+    for lh, col in lhs:
+        f, db = ac_curve(LH=lh)
+        lab = f"Lp = {4*lh:g} H" + ("  (v1)" if lh == 10 else "")
+        axs[0].semilogx(f, db, color=col, label=lab)
+        axs[1].semilogx(f, db, color=col, label=lab)
+        m = ac_metrics(LH=lh)
+        rows.append(("Lp_H", 4 * lh, "none", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+    f, db = ac_curve(ZOBEL, LH=5)
+    axs[1].semilogx(f, db, color=C2, ls="--", lw=1.6, label="Lp = 20 H + Zobel 4.7R/100n")
+    m = ac_metrics(ZOBEL, LH=5)
+    rows.append(("Lp_H", 20, "zobel", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+    for kc, col in zip([0.998, 0.999, 0.9995, 0.9998], [C1, C2, C3, C4]):
+        f, db = ac_curve(KC=kc)
+        axs[2].semilogx(f, db, color=col, label=f"k = {kc}  (leakage ~{40*(1-kc**2)*1e3:.0f} mH)" + ("  (v1)" if kc == 0.9995 else ""))
+        m = ac_metrics(KC=kc)
+        rows.append(("k", kc, "none", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+    axs[0].set(title="Primary inductance: low end", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)", xlim=(0.5, 2e3), ylim=(-15, 4))
+    axs[1].set(title="Primary inductance: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
+    axs[2].set(title="Coupling / leakage: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
+    for ax in axs:
+        ax.axhline(-3, color=INK2, lw=1, ls=":")
+        ax.legend(loc="lower left", fontsize=8.5)
+    axs[0].legend(loc="lower right", fontsize=8.5)
+    fig.tight_layout()
+    write_csv("fig13_opt_lp_kc.csv", ["param", "value", "fix", "f_minus3dB_low_Hz", "f_minus3dB_high_Hz", "hf_peak_dB", "hf_peak_Hz"], rows)
+    save(fig, "fig13_opt_lp_kc.png",
+         "NFB 2.7k || 1n unchanged; 40 H primary is v1. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)

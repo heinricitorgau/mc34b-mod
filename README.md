@@ -10,8 +10,9 @@
 | 單聲道 LTspice 網表 | ✅ v1.1（理想 400 V 電源） |
 | 電源模型（PSUD2 / SPICE） | ✅ psu_v1：SPICE 版完成；PSUD2 輸入表見 `simulations/psud2/`，`.psu` 檔待存 |
 | 立體聲 + 電源模擬 | ✅ `amp_stereo_psu_v1.cir` |
-| 模擬圖表 | ✅ 10 張（`docs/figures/`） |
-| 參數敏感度分析（OPT、管子離散） | ⬜（市電 ±10 % 已完成，見 §4.2） |
+| 模擬圖表 | ✅ 13 張（`docs/figures/`），原始數據在 `docs/data/` |
+| B+ / OPT 敏感度 | ✅ 見 §4.3（發現高頻共振，建議加 Zobel） |
+| 管子離散敏感度 | ⬜ |
 
 ---
 
@@ -159,6 +160,49 @@ C1 漣波約 4.9 V p-p，經 CRC 後 B+ 剩約 0.23 V p-p。推挽把 B+ 漣波�
 
 > **v1.2（2026-11-02）**：取代 v1.1 中「B+ 420 V 時屏耗 18.7 W」的估算：那是理想電源加固定偏壓的結果，現在由上表（真實電源）取代。
 
+### 4.3 B+ 與 OPT 敏感度
+
+單聲道網表（理想 B+）中可調的參數：`VBPLUS`（B+）、`RAA`（OPT 初級阻抗）、`TU`（UL 抽頭）、`LH`（半邊初級電感，總電感 = 4 × LH）、`KC`（耦合係數）。數據都存在 `docs/data/*.csv`。
+
+#### B+ 360–440 V
+
+![B+ sensitivity](docs/figures/fig11_bplus_sensitivity.png)
+
+| | 偏壓固定 −42 V | 偏壓隨 B+ 等比例變動 |
+|---|---|---|
+| 靜態屏耗 360 → 440 V | 6.3 → **24.7 W**（約 426 V 起超過 20.5 W） | 10.7 → 17.1 W |
+| 1 % THD 最大功率 | 21 → 36 W | 22 → 36 W |
+| 10 W 時 THD | 0.37 → 0.02 % | 0.10 → 0.07 % |
+
+最大功率幾乎只由 B+ 決定（每 10 V 約 +1.8 W），與偏壓方式無關；偏壓方式決定的是靜態屏耗是否安全，以及低 B+ 時的失真（偏壓固定時 B+ 一低，靜態電流掉到 18 mA，交越失真上升）。結論與 §4.2 的市電掃描一致：偏壓必須隨 B+ 變動。
+
+#### OPT 初級阻抗 × UL 抽頭
+
+![OPT impedance and UL](docs/figures/fig12_opt_raa_ul.png)
+
+- **初級阻抗 5–6.6 kΩ（MC34-B 可能範圍）內結果很平**：43 % UL 時最大功率 27–28 W、10 W 失真 0.08–0.10 %、阻尼因數 13–15。所以 OPT 實際是 5 k 還是 6.6 k，對設計影響不大。
+- **UL 抽頭影響比初級阻抗大**：抽頭越低越接近五極接法，功率越大（20 %：約 36 W；55 %：約 24 W），而且因為開迴路增益較高、迴授較深，失真反而更低。
+- 阻尼因數主要隨初級阻抗上升（4 k：約 11.5；8 k：約 16），UL 抽頭影響很小。
+
+#### OPT 初級電感與漏感：迴授穩定度
+
+![OPT inductance and leakage](docs/figures/fig13_opt_lp_kc.png)
+
+- **低頻**：初級電感 10–80 H，−3 dB 下限在 7–10 Hz，沒有任何低頻峰，低頻端很穩。
+- **高頻**：−3 dB 上限都在 57–62 kHz。但**迴路在 1.1–1.4 MHz 有一個窄共振**，某些組合會被推到 0 dB 以上：
+
+| OPT 組合 | 高頻峰（不加補償） | 加 Zobel 4.7 Ω + 100 nF |
+|---|---|---|
+| v1（40 H、43 % UL、6 k） | 無 | 無 |
+| 初級電感 20 H | **+12.6 dB @ 1.41 MHz** | 無 |
+| UL 30 %、6 k | +1.0 dB @ 1.12 MHz | 無 |
+| UL 30 %、6.6 k | **+5.6 dB @ 1.15 MHz** | 無 |
+| UL 30 %、8 k | **+8.0 dB @ 1.20 MHz** | 無 |
+
+峰值超過 0 dB 代表迴授在那個頻率的相位裕度很小，接近振盪。v1 的假設值剛好沒踩到，但 OPT 的真實參數一偏離就可能出現。在 4 Ω 輸出端並聯一組 **Zobel 網路（4.7 Ω 串 100 nF）**，所有測試組合的峰值都消失，而 −3 dB 頻寬（約 62 kHz）、阻尼因數、失真都不變。（模型沒有包含繞組分布電容，共振頻率與高度只供參考。）
+
+> **建議（尚未併入基準設計）**：v1.3 加入輸出端 Zobel 4.7 Ω + 100 nF。併入後需重新產生所有圖表。
+
 ## 5. 目錄結構
 
 ```
@@ -170,7 +214,8 @@ mc34b-mod/
 │   └── psud2/              PSUD2 輸入表 (README.md) 與 .psu 檔
 ├── docs/
 │   ├── datasheets/         真空管 datasheet（擬合 / 檢查模型用）
-│   └── figures/            模擬圖表（tools/make_figures.py 產生）
+│   ├── figures/            模擬圖表（tools/make_figures.py 產生）
+│   └── data/               掃描結果 CSV（與圖同時產生）
 ├── tools/                  make_figures.py（重新產生 docs/figures）
 ├── setup-repo.ps1          一鍵建立目錄結構
 ├── .gitignore
@@ -187,6 +232,8 @@ mc34b-mod/
 6. `psu_v1.cir`：電源單獨模擬（定電流負載，與 PSUD2 相同）。改 `ILOAD`、`MAINS` 看不同情境。
 7. `amp_stereo_psu_v1.cir`：電源 + 兩個聲道。它由 `python tools/make_figures.py stereo` 從前兩個檔案產生，要改電路請改來源檔再重新產生。冷機開機模擬請加 `.options method=gear`，並拿掉 `.ic` 行。
 8. 功率管不匹配：`amp_channel_v1.cir` 中的 `KGA`、`KGB` 分別是兩支功率管的 KG1。
+9. 敏感度：`VBPLUS`、`RAA`、`TU`、`LH`、`KC` 都在 `amp_channel_v1.cir` 的 `.param` 中，可用 `.step param RAA list 5k 6k 6.6k` 這類語法掃描。
+10. 只重畫敏感度圖（不重跑模擬）：`python tools/make_figures.py plot11 plot12`。
 
 **重新產生圖表**（需要 [ngspice](https://ngspice.sourceforge.io/) 與 Python 的 numpy、matplotlib）：
 
@@ -202,8 +249,11 @@ python tools/make_figures.py fig4 fig5  # 只更新部分
 - [ ] 在 PSUD2 依 `simulations/psud2/README.md` 輸入並存成 `psu_v1.psu`，與 SPICE 結果對照
 - [x] 市電 ±10 % 敏感度（含偏壓是否隨市電變動）
 - [ ] 偏壓電源本身的模型（目前為理想電壓源 × MAINS）
-- [ ] OPT 敏感度：掃描 `LH`、`TU`、`KC`，確認迴授在各種假設下都穩定
-- [ ] 方波 / 步階響應模擬，檢查相位裕度
+- [x] B+ 360–440 V 敏感度（偏壓固定 vs 隨 B+ 變動）
+- [x] OPT 敏感度：初級阻抗、UL 抽頭、初級電感、耦合係數
+- [ ] 決定是否把輸出端 Zobel（4.7 Ω + 100 nF）併入 v1.3，併入後重新產生全部圖表
+- [ ] 在 OPT 模型加入繞組分布電容，重新檢查 1 MHz 附近的共振
+- [ ] 方波 / 步階響應、開迴路增益與相位裕度（Middlebrook 或斷迴路法）
 - [ ] 以 `KGA` / `KGB` 系統性掃描推挽兩管不匹配（失真、直流偏磁），以及 6P3S-E 與 6P3P 的差異
 - [ ] 建立 LTspice 圖形化電路圖（`.asc`）
 
