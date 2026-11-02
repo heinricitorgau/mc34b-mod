@@ -8,9 +8,10 @@
 |---|---|
 | SPICE 模型 | ✅ v2（6N1 / 6N2 擬合、6P3S-E / 6P3P 用 Koren 6L6GC） |
 | 單聲道 LTspice 網表 | ✅ v1.1（理想 400 V 電源） |
-| 模擬圖表 | ✅ 7 張（`docs/figures/`） |
-| PSUD2 電源模型 | ⬜ |
-| 參數敏感度分析（B+、OPT、管子離散） | ⬜ |
+| 電源模型（PSUD2 / SPICE） | ✅ psu_v1：SPICE 版完成；PSUD2 輸入表見 `simulations/psud2/`，`.psu` 檔待存 |
+| 立體聲 + 電源模擬 | ✅ `amp_stereo_psu_v1.cir` |
+| 模擬圖表 | ✅ 10 張（`docs/figures/`） |
+| 參數敏感度分析（OPT、管子離散） | ⬜（市電 ±10 % 已完成，見 §4.2） |
 
 ---
 
@@ -45,7 +46,10 @@
 
 | 項目 | 假設值 | 網表中的參數 |
 |---|---|---|
-| B+ | 400 V 理想電源，串 15 Ω | `VBP`、`RBP` |
+| B+（單聲道網表） | 400 V 理想電源，串 15 Ω | `VBP`、`RBP` |
+| B+（立體聲網表） | `psu_v1`：HT 315.5 Vrms、內阻 40 Ω、矽橋、220 µF–47 Ω–470 µF | `VSEC`、`RSEC`、`CIN`、`RFIL`、`COUT` |
+| 市電 | 110 V / 60 Hz（`MAINS` = 0.9–1.1） | `MAINS` |
+| 固定偏壓 | −42 V，立體聲網表中隨市電等比例變動 | `VBN`、`VB` |
 | OPT 初級阻抗 | 6 kΩ p-p | 由圈數比決定（`LH`、次級電感） |
 | OPT 初級電感 | 40 H（半邊 10 H） | `LH=10` |
 | UL 抽頭 | 43 % | `TU=0.43` |
@@ -116,7 +120,44 @@ V3/V4 – 6P3S-E：靜態點 397 V / 34.4 mA（13.7 W，約額定 67 %），B �
 
 模型中 −42 V 對應 34 mA；約 −38 V 就會碰到 20 W 屏耗上限。
 
-> ⚠️ 模型限制：電源為理想 400 V（未含變壓器壓降），6L6 模型電流偏高約 10 %，OPT 參數為假設值。
+> ⚠️ 模型限制：§4.1 的圖用理想 400 V 電源；有電源壓降的結果見 §4.2。6L6 模型電流偏高約 10 %，OPT 與變壓器參數為假設值。
+
+### 4.2 電源模擬（psu_v1）
+
+電源電路、PSUD2 輸入表與電源單獨的掃描結果見 [`simulations/psud2/README.md`](simulations/psud2/README.md)。
+這裡是把電源接上兩個完整聲道（`amp_stereo_psu_v1.cir`）後的結果。
+
+#### 開機暫態
+
+![PSU startup](docs/figures/fig8_psu_startup.png)
+
+B+ 與 B2 約 1 秒到位；B3（6N2 電源）要 5–6 秒，因為 RD2 × CD2 = 2.2 s。開機約 0.1 s 時功率管電流有約 150 mA 的尖峰：B2 上升時經耦合電容把功率管柵極往正推。模型假設管子從 t = 0 就導通、偏壓瞬間建立，屬於最壞情況。
+
+#### 漣波與哼聲
+
+![Ripple](docs/figures/fig9_psu_ripple.png)
+
+C1 漣波約 4.9 V p-p，經 CRC 後 B+ 剩約 0.23 V p-p。推挽把 B+ 漣波幾乎完全抵消：兩管匹配時喇叭端只剩 0.13 µV rms；一支管子電流少 5 % 時升到 7.7 µV rms，仍比 27 W 低約 123 dB。（只計電源漣波造成的哼聲。）
+
+#### 失真與壓降
+
+![THD and sag](docs/figures/fig10_psu_thd_sag.png)
+
+兩聲道同時滿載時 B+ 從 400 V 降到約 377 V，削波點從約 28 W 降到約 25 W／聲道；削波前的失真約 0.1–0.2 %，和理想電源差不多。
+
+#### 市電 ±10 %：偏壓是否跟著變動
+
+| 市電 | 偏壓 | B+ | 每管 Ik | 每管 Pa |
+|---|---|---|---|---|
+| 99 V | 隨市電（−37.8 V） | 360 V | 30.4 mA | 10.9 W |
+| 99 V | 固定 −42 V | 368 V | 20.8 mA | 7.6 W |
+| 110 V | −42 V | 400 V | 34.8 mA | 13.8 W |
+| 121 V | 隨市電（−46.2 V） | 439 V | 39.3 mA | 17.2 W |
+| 121 V | 固定 −42 V | 429 V | 51.4 mA | **21.9 W** |
+
+偏壓若由同一顆變壓器的繞組供應，會跟著市電一起變大，市電 +10 % 時屏耗只到 17.2 W；若偏壓固定不變，則會到 21.9 W，超過 6P3S-E 的 20.5 W 額定。所以這個設計的偏壓電源模型必須隨市電變動（立體聲網表預設如此）。
+
+> **v1.2（2026-11-02）**：取代 v1.1 中「B+ 420 V 時屏耗 18.7 W」的估算：那是理想電源加固定偏壓的結果，現在由上表（真實電源）取代。
 
 ## 5. 目錄結構
 
@@ -124,8 +165,9 @@ V3/V4 – 6P3S-E：靜態點 397 V / 34.4 mA（13.7 W，約額定 67 %），B �
 mc34b-mod/
 ├── models/                 SPICE 模型 (tubes_amp.inc)
 ├── simulations/
-│   ├── ltspice/            .cir / .asc（amp_channel_v1.cir、curves_*.cir）
-│   └── psud2/              .psu 電源模擬
+│   ├── ltspice/            amp_channel_v1.cir（單聲道）、psu_v1.cir（電源）、
+│   │                       amp_stereo_psu_v1.cir（自動產生，勿手改）、curves_*.cir
+│   └── psud2/              PSUD2 輸入表 (README.md) 與 .psu 檔
 ├── docs/
 │   ├── datasheets/         真空管 datasheet（擬合 / 檢查模型用）
 │   └── figures/            模擬圖表（tools/make_figures.py 產生）
@@ -142,6 +184,9 @@ mc34b-mod/
 3. 參數都集中在網表上方的 `.param` 區塊；可用 `.step param VB list -38 -42 -46` 掃描偏壓，或 `.step param KC list 0.998 0.9995` 掃描 OPT 耦合係數。
 4. 要看直流工作點，在 `.tran` 前加 `.op`。屏耗 = V(pa) × V(ka)（RKO = 1 Ω，V(ka) 的數值即陰極電流）。
 5. `curves_*.cir` 用來畫各管的屏極特性曲線，檢查模型是否合理。
+6. `psu_v1.cir`：電源單獨模擬（定電流負載，與 PSUD2 相同）。改 `ILOAD`、`MAINS` 看不同情境。
+7. `amp_stereo_psu_v1.cir`：電源 + 兩個聲道。它由 `python tools/make_figures.py stereo` 從前兩個檔案產生，要改電路請改來源檔再重新產生。冷機開機模擬請加 `.options method=gear`，並拿掉 `.ic` 行。
+8. 功率管不匹配：`amp_channel_v1.cir` 中的 `KGA`、`KGB` 分別是兩支功率管的 KG1。
 
 **重新產生圖表**（需要 [ngspice](https://ngspice.sourceforge.io/) 與 Python 的 numpy、matplotlib）：
 
@@ -153,11 +198,13 @@ python tools/make_figures.py fig4 fig5  # 只更新部分
 
 ## 7. 待辦（模擬）
 
-- [ ] PSUD2 建立電源模型，取得帶載 B+ / B2 / B3，取代網表中的理想 400 V
-- [ ] B+ 敏感度：380 / 400 / 420 V 下的工作點、屏耗、最大功率
+- [x] 電源模型 psu_v1（SPICE），接上立體聲網表；B+ / B2 / B3、漣波、壓降、開機暫態
+- [ ] 在 PSUD2 依 `simulations/psud2/README.md` 輸入並存成 `psu_v1.psu`，與 SPICE 結果對照
+- [x] 市電 ±10 % 敏感度（含偏壓是否隨市電變動）
+- [ ] 偏壓電源本身的模型（目前為理想電壓源 × MAINS）
 - [ ] OPT 敏感度：掃描 `LH`、`TU`、`KC`，確認迴授在各種假設下都穩定
 - [ ] 方波 / 步階響應模擬，檢查相位裕度
-- [ ] 以 `KG1` 模擬推挽兩管不匹配，以及 6P3S-E 與 6P3P 的差異
+- [ ] 以 `KGA` / `KGB` 系統性掃描推挽兩管不匹配（失真、直流偏磁），以及 6P3S-E 與 6P3P 的差異
 - [ ] 建立 LTspice 圖形化電路圖（`.asc`）
 
 ## 8. Commit 慣例

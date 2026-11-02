@@ -1,0 +1,39 @@
+* =====================================================================
+*  psu_v1.cir  --  B+ power supply, PSUD2-equivalent model (LTspice / ngspice)
+*  Mains 110 V / 60 Hz (Taiwan) -> HT winding -> Si bridge -> C1-R1-C2 (CRC)
+*  Load = constant-current sink, exactly as PSUD2 models it.
+*  Same values as simulations/psud2/README.md, so the two tools can be compared.
+*  Assumed MC34-B transformer values (not measured): see README section 3.
+* =====================================================================
+* ---- parameters ---------------------------------------------------
+.param MAINS=1.0       ; mains factor: 0.9 / 1.0 / 1.1  (99 / 110 / 121 V)
+.param VSEC=315.5        ; HT secondary, Vrms at nominal mains (calibrated: B+ = 400 V at idle)
+.param RSEC=40         ; transformer source resistance seen from the secondary (ohm)
+.param CIN=220u ESR1=0.5     ; reservoir cap + ESR
+.param RFIL=47            ; CRC series resistor (drop ~7 V idle)
+.param COUT=470u ESR2=0.3   ; B+ cap + ESR
+.param ILOAD=0.158     ; stereo idle 158 mA ; full power both channels ~0.30
+* ---- transformer HT winding (Thevenin: ideal sine + source resistance)
+VHT ht1 hts SIN(0 {VSEC*MAINS*sqrt(2)} 60)
+RS  hts ht2 {RSEC}
+RREF ht2 0 10Meg
+* ---- silicon bridge
+D1 ht1 raw DPWR
+D2 ht2 raw DPWR
+D3 0 ht1 DPWR
+D4 0 ht2 DPWR
+.model DPWR D(IS=7.03n RS=0.034 N=1.81 BV=1000 IBV=50n CJO=10p TT=100n)
+* ---- CRC filter
+CF1 raw c1n {CIN}
+RE1 c1n 0 {ESR1}
+RF1 raw bp {RFIL}
+CF2 bp c2n {COUT}
+RE2 c2n 0 {ESR2}
+* ---- load (current sink, ramps on in 10 ms)
+ILD bp 0 PWL(0 0 10m {ILOAD})
+* ---- analysis
+.tran 0 3 2.9 20u
+.meas TRAN Vbp AVG V(bp) FROM 2.9 TO 3
+.meas TRAN Vbp_pp PP V(bp) FROM 2.9 TO 3
+.meas TRAN Vraw_pp PP V(raw) FROM 2.9 TO 3
+.end
