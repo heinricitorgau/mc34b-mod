@@ -10,7 +10,7 @@
 .include ../../models/tubes_amp.inc
 .options plotwinsize=0 numdgt=7
 * ---- design parameters (edit here) --------------------------------
-.param VB=-42        ; fixed bias, trim per tube on the real amp
+.param VB=-42        ; fixed bias (sweep with .step to study bias)
 .param RKO=1 CKO=1p  ; 1R cathode sense (fixed bias). Cathode-bias test: RKO=1.1k CKO=220u VB=0
 .param RD1=1k RD2=47k
 .param RA1=330k RK2=2.7k   ; 2.7k: DC path via RFB is in parallel, Vgk ~ -0.9 V

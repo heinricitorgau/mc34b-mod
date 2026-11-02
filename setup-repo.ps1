@@ -2,7 +2,7 @@
 .SYNOPSIS
     One-shot scaffold for the mc34b-6p3s-mod repository.
 .DESCRIPTION
-    - Creates the standard folder tree (models / simulations / docs / layout).
+    - Creates the standard folder tree (models / simulations / docs / tools).
     - Moves SPICE files already sitting in the root into place and rewrites
       their ".include xxx.inc" lines to point at ../../models/.
     - Drops .gitkeep into empty folders so Git tracks them.
@@ -27,10 +27,9 @@ $dirs = @(
     'models',                 # SPICE .inc / .lib / .asy
     'simulations\ltspice',    # .cir / .asc
     'simulations\psud2',      # .psu
-    'docs\datasheets',        # tube / part datasheets (PDF)
-    'docs\measurements',      # PT / OPT / bias measurement logs, scope shots
-    'docs\photos',            # chassis before / after photos
-    'layout'                  # point-to-point / turret wiring drawings
+    'docs\datasheets',        # tube datasheets used to fit / check models
+    'docs\figures',           # simulation plots (tools/make_figures.py)
+    'tools'                   # helper scripts
 )
 foreach ($d in $dirs) {
     $p = Join-Path $Root $d

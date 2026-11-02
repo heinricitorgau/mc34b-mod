@@ -1,5 +1,5 @@
 * =====================================================================
-*  tubes_amp.inc  --  Koren-type models for Hienrici's 6L6-family amp
+*  tubes_amp.inc  --  Koren-type models for the mc34b-mod simulations
 *  For LTspice (uses PWR / PWRS / PARAMS:).  v2  2026-11
 *
 *  Triode pins : A G K            Pentode/beam pins : A G2 G1 K
@@ -85,7 +85,7 @@ D1 5 K DX
 .ENDS 6P3S-E
 
 * ---------------- 6P3P (Shuguang) : 6L6G-class beam tetrode
-*  Same base model; tune KG1 after you measure real tubes.
+*  Same base model; sweep KG1 to study brand / sample spread.
 .SUBCKT 6P3P A G2 G1 K PARAMS: MU=8.7 EX=1.35 KG1=1460 KG2=4500
 + KP=48 KVB=12 RGI=1000 CCG=11P CPG1=0.9P CCP=6.5P
 E1 7 0 VALUE={MAX(V(G2,K),1M)/KP*SOFTP(KP*(1/MU+V(G1,K)/MAX(V(G2,K),1M)))}

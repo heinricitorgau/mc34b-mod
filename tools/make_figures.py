@@ -222,7 +222,7 @@ def fig3():
            ylabel="Plate current (mA)", xlim=(0, 640))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2)
     save(fig, "fig3_6P3S-E_plate.png",
-         "Koren 6L6GC parameters (~10 % hot vs. data sheet). Screen fixed at idle value; real UL screen swings with plate.")
+         "Koren 6L6GC parameters (~10 % hot vs. data sheet). Screen held at idle value here; in the UL circuit it swings with the plate.")
 
 
 def fig4():
@@ -258,7 +258,7 @@ def fig5():
            ylabel="THD (%)", xlim=(0.05, 40))
     ax.legend(loc="upper left")
     save(fig, "fig5_thd_vs_power.png",
-         "Ideal 400 V supply (no PT sag) - real amp will clip earlier, at roughly 20 W.")
+         "Ideal 400 V supply: no transformer sag is modelled yet.")
 
 
 def fig6():
@@ -287,14 +287,14 @@ def fig7():
     ik = np.array(ik)
     fig, ax = plt.subplots(figsize=(7.2, 4.2))
     ax.axhspan(33, 35, color=C3, alpha=0.18, lw=0)
-    ax.text(-49.6, 35.6, "target 33-35 mA", color=INK2, fontsize=9)
+    ax.text(-49.6, 35.6, "design point 33-35 mA", color=INK2, fontsize=9)
     ax.plot(vbs, ik, "o-", color=C1, ms=6, mec=SURF, mew=1)
     ax.axhline(20 / 0.397, color=C4, lw=2, ls="--")
     ax.text(-49.6, 20 / 0.397 + 1.2, "Pa = 20 W at 397 V  (50 mA)", color=INK2, fontsize=9)
     ax.set(title="Idle current per output tube vs fixed bias voltage", xlabel="Grid bias (V)",
            ylabel="Cathode current (mA)", ylim=(0, 70))
     save(fig, "fig7_bias_sweep.png",
-         "Model value. Real 6P3S-E / 6P3P differ tube-to-tube - set each tube with its own pot and 1 ohm sense resistor.")
+         "Model value, ideal 400 V supply. Sweep KG1 in models/tubes_amp.inc to see tube-to-tube spread.")
 
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7)
