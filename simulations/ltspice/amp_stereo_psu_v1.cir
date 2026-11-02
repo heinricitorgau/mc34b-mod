@@ -7,6 +7,7 @@
 *  same transformer would.  .ic starts the supply near steady state.
 * =====================================================================
 .include ../../models/tubes_amp.inc
+.include ../../models/elt10_est.inc
 .options plotwinsize=0 numdgt=7
 * ---- channel parameters (from amp_channel_v1.cir) ----
 .param VBN=-42        ; fixed bias (sweep with .step to study bias)
@@ -14,10 +15,11 @@
 .param RD1=1k RD2=47k
 .param RA1=330k RK2=2.7k   ; 2.7k: DC path via RFB is in parallel, Vgk ~ -0.9 V
 .param RT=15k RLA=18k RLB=18.82k
-.param RFB=2.7k CFB=1n
-.param RSTEP=3.3k CSTEP=470p ; V1 plate step network (v1.3). Disable: RSTEP=1e9
-.param RZOB=4.7 CZOB=100n   ; output Zobel (v1.3). Disable: RZOB=1e9
+.param RFB=2.7k CFB=1p        ; lead cap removed in v1.4 (v1.1-v1.3 used 1n)
+.param RSTEP=3.3k CSTEP=470p ; V1 plate step network (v1.3+). Disable: RSTEP=1e9
+.param RZOB=10 CZOB=470n    ; output Zobel (v1.4; v1.3 was 4.7R+100n). Disable: RZOB=1e9
 .param RL=4                 ; resistive load (ohm); 1e6 = no load
+.param SPK=0                ; 1 = connect the estimated ELT 10 model (then set RL=1e6)
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
 .param LH=10 TU=0.43 KC=0.9995 RAA=6k   ; half-primary L (H), UL tap, coupling, primary Z (plate-plate)
 .param VB={VBN*MAINS}
@@ -57,7 +59,7 @@ Rin in ing 1k
 Rgl ing 0 470k
 X1 v1a ing v1k 6N2
 RA1 b3 v1a {RA1}
-* lag step network on V1 plate (v1.3): cuts loop gain near 1 MHz, see README 4.3
+* lag step network on V1 plate (v1.3+): cuts loop gain near 1 MHz, see README 4.3 / 4.5
 RST v1a nst {RSTEP}
 CST nst 0 {CSTEP}
 RK1 v1k fb 100
@@ -112,10 +114,13 @@ K25 L2 L5 {KC}
 K34 L3 L4 {KC}
 K35 L3 L5 {KC}
 K45 L4 L5 {KC}
-* ---- output Zobel (v1.3): damps the ~1.1-1.4 MHz loop resonance, see README 4.3
+* ---- output Zobel (v1.4): damps the ~1-2 MHz loop resonance, see README 4.5
 RZ out nz {RZOB}
 CZ nz 0 {CZOB}
 RLOAD out 0 {RL}
+* estimated ELT 10 speaker; RSPK opens it when SPK=0
+XSPK out spk ELT10_EST
+RSPK spk 0 {1e9*(1-SPK)+1u}
 .ends AMPCH
 XL inL outL bp AMPCH
 XR inR outR bp AMPCH

@@ -77,8 +77,8 @@ def ngspice(netlist, timeout=180):
         return r.stdout + r.stderr, d
 
 
-def ng_wrdata(body, analysis, vectors):
-    """Run analysis, return numpy array [x, v1, v2, ...]."""
+def ng_wrdata(body, analysis, vectors, timeout=900, allow_fail=False):
+    """Run analysis, return numpy array [x, v1, v2, ...] (None on failure if allow_fail)."""
     with tempfile.TemporaryDirectory() as d:
         dat = os.path.join(d, "o.dat").replace("\\", "/")
         net = f"{body}\n.control\nset wr_singlescale\nset wr_vecnames\n{analysis}\n" \
@@ -86,17 +86,28 @@ def ng_wrdata(body, analysis, vectors):
         f = os.path.join(d, "x.sp")
         open(f, "w").write(net)
         open(os.path.join(d, ".spiceinit"), "w").write("set ngbehavior=ltpsa\n")
-        r = subprocess.run([NGSPICE, "-b", f], capture_output=True, text=True, cwd=d)
+        try:
+            r = subprocess.run([NGSPICE, "-b", f], capture_output=True, text=True, cwd=d, timeout=timeout)
+            log = r.stdout[-2000:] + r.stderr[-2000:]
+        except subprocess.TimeoutExpired:
+            log = f"timeout after {timeout} s"
         if not os.path.exists(dat):
-            sys.exit("ngspice failed:\n" + r.stdout[-2000:] + r.stderr[-2000:])
+            if allow_fail:
+                return None
+            sys.exit("ngspice failed:\n" + log)
         return np.loadtxt(dat, skiprows=1)
+
+
+def model_path(p):
+    """'../../models/foo.inc' (as written in the netlists) -> absolute path in this repo."""
+    return os.path.join(ROOT, "models", os.path.basename(p)).replace("\\", "/")
 
 
 def channel(**over):
     """Circuit section of amp_channel_v1.cir with .param overrides."""
     txt = open(CIR, encoding="utf-8").read().replace("\r\n", "\n")
     txt = txt.split("* ---- stimulus")[0]
-    txt = re.sub(r"(?im)^\.include\s+\S+", f".include {INC}", txt)
+    txt = re.sub(r"(?im)^\.include\s+(\S+)", lambda mm: ".include " + model_path(mm.group(1)), txt)
     txt = re.sub(r";.*", "", txt)                      # strip LTspice comments
     txt = re.sub(r"(?im)^\.options.*$", "", txt)
     for k, v in over.items():
@@ -229,10 +240,10 @@ def fig3():
 
 
 def fig4():
-    sets = [("Open loop (v1.3 forward path)", dict(RFB="1e9"), C1, "-"),
+    sets = [("Open loop (v1.4 forward path)", dict(RFB="1e9"), C1, "-"),
             ("NFB 2.7k, no lead cap", dict(RFB="2.7k", CFB="1p", RZOB="1e9", RSTEP="1e9"), C2, "-"),
-            ("v1.1: NFB 2.7k || 1nF", dict(RZOB="1e9", RSTEP="1e9"), C4, "--"),
-            ("v1.3: + step 3.3k/470p + Zobel 4.7R/100n", dict(), C3, "-")]
+            ("v1.1: NFB 2.7k || 1nF", dict(RZOB="1e9", RSTEP="1e9", CFB="1n"), C4, "--"),
+            ("v1.4: step 3.3k/470p + Zobel 10R/470n, no lead cap", dict(), C3, "-")]
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     for lab, ov, col, ls in sets:
         d = ng_wrdata(channel(**ov) + "VIN in 0 AC 1\n", "ac dec 100 1 5e6", ["vdb(out)"])
@@ -320,6 +331,7 @@ def build_stereo():
     head, body = ch.split("* ---- power supply", 1)
     body = "* ---- power supply" + body
     params = re.findall(r"(?m)^\.param .*$", head + body)
+    includes = re.findall(r"(?im)^\.include .*$", head)
     lines = [l for l in body.split("\n")
              if l.strip() and not re.match(r"(?i)^(\.param|VBP\b|RBP\b|\* ---- power supply)", l)]
     params = [re.sub(r"^\.param VB=(\S+)", r".param VBN=\1", p) for p in params]
@@ -335,7 +347,7 @@ def build_stereo():
 *  Fixed bias tracks the mains (VB = VBN * MAINS), as a bias winding on the
 *  same transformer would.  .ic starts the supply near steady state.
 * =====================================================================
-.include ../../models/tubes_amp.inc
+{chr(10).join(includes)}
 .options plotwinsize=0 numdgt=7
 * ---- channel parameters (from amp_channel_v1.cir) ----
 {chr(10).join(params)}
@@ -370,7 +382,7 @@ VINR inR 0 SIN(0 {{AMP}} 1k)
 def stereo(amp=0.0, mains=1.0, tstop=0.42, tstart=0.4, ic=True, **over):
     """ngspice text of the stereo+PSU netlist, analysis lines removed."""
     txt = build_stereo().split("* ---- stimulus")[0]
-    txt = re.sub(r"(?im)^\.include\s+\S+", f".include {INC}", txt)
+    txt = re.sub(r"(?im)^\.include\s+(\S+)", lambda mm: ".include " + model_path(mm.group(1)), txt)
     if not ic:
         txt = re.sub(r"(?im)^\.ic .*$", "", txt)
     txt = to_ngspice(txt)            # strip comments first: they may contain "KGB=..." text
@@ -520,7 +532,7 @@ def read_csv(name):
         return list(csv.DictReader(fh))
 
 
-NO_COMP = dict(RZOB="1e9", RSTEP="1e9")     # removes the v1.3 HF compensation, for comparison
+NO_COMP = dict(RZOB="1e9", RSTEP="1e9", CFB="1n")   # = v1.1 (no HF compensation), for comparison
 
 
 def ac_curve(extra="", **over):
@@ -624,7 +636,7 @@ def plot_fig12():
     axs[2].set(title="Damping factor at 1 kHz", xlabel="OPT primary (k ohm, p-p)", ylabel="4 ohm / Zout", ylim=(0, None))
     _bottom_legend(fig, hs, labs, 4)
     save(fig, "fig12_opt_raa_ul.png",
-         "v1.3 circuit, B+ 400 V ideal, bias -42 V. Data: docs/data/fig12_opt_raa_ul.csv")
+         "v1.4 circuit, B+ 400 V ideal, bias -42 V. Data: docs/data/fig12_opt_raa_ul.csv")
 
 
 def fig13():
@@ -638,7 +650,7 @@ def fig13():
         axs[0].semilogx(f, db, color=col, label=lab)
         axs[1].semilogx(f, db, color=col, label=lab)
         m = ac_metrics(LH=lh)
-        rows.append(("Lp_H", 4 * lh, "v1.3", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("Lp_H", 4 * lh, "v1.4", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     f, db = ac_curve(LH=5, **NO_COMP)
     axs[1].semilogx(f, db, color=C2, ls="--", lw=1.6, label="Lp = 20 H, v1.1 (no HF compensation)")
     m = ac_metrics(LH=5, **NO_COMP)
@@ -647,7 +659,7 @@ def fig13():
         f, db = ac_curve(KC=kc)
         axs[2].semilogx(f, db, color=col, label=f"k = {kc}  (leakage ~{40*(1-kc**2)*1e3:.0f} mH)" + ("  (v1)" if kc == 0.9995 else ""))
         m = ac_metrics(KC=kc)
-        rows.append(("k", kc, "v1.3", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("k", kc, "v1.4", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     axs[0].set(title="Primary inductance: low end", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)", xlim=(0.5, 2e3), ylim=(-15, 4))
     axs[1].set(title="Primary inductance: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
     axs[2].set(title="Coupling / leakage: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
@@ -658,9 +670,10 @@ def fig13():
     fig.tight_layout()
     write_csv("fig13_opt_lp_kc.csv", ["param", "value", "fix", "f_minus3dB_low_Hz", "f_minus3dB_high_Hz", "hf_peak_dB", "hf_peak_Hz"], rows)
     save(fig, "fig13_opt_lp_kc.png",
-         "v1.3 (step 3.3k+470p, Zobel 4.7R+100n); dashed = v1.1 without them. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
+         "v1.4 (step 3.3k+470p, Zobel 10R+470n, no lead cap); dashed = v1.1. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
 # ---------------------------------------------------------------- square wave & loop gain
-V11 = dict(RZOB="1e9", RSTEP="1e9")          # v1.1 = no HF compensation
+V11 = dict(RZOB="1e9", RSTEP="1e9", CFB="1n")   # v1.1: RFB 2.7k || 1n, no step network, no Zobel
+V13 = dict(RZOB="4.7", CZOB="100n", CFB="1n")    # v1.3: step network + Zobel 4.7R/100n + 1n lead cap
 
 
 def square(freq, amp=0.16, extra="", cycles=None, **over):
@@ -668,14 +681,19 @@ def square(freq, amp=0.16, extra="", cycles=None, **over):
     T = 1.0 / freq
     n = cycles or max(4, int(np.ceil(0.25 / T)) if freq < 200 else 12)
     tstop = n * T
-    step = min(T / 4000, 50e-9) if freq >= 1e3 else T / 4000
+    step = min(T / 4000, 50e-9) if freq >= 1e3 else T / 2000   # T/4000 fails in ngspice at 40 Hz
     # two unipolar pulses in series: starts at 0 V, so the DC operating point is the idle one
     w = T / 2 - 20e-9
     src = (f"VIN in in2 PULSE(0 {amp} 0 20n 20n {w:.6g} {T:.6g})\n"
            f"VIN2 in2 0 PULSE(0 {-amp} {T/2:.6g} 20n 20n {w:.6g} {T:.6g})\n")
-    d = ng_wrdata(channel(**over) + extra + src + ".options method=gear\n",
-                  f"tran {step:.3g} {tstop:.6g} {tstop-2*T:.6g} {step:.3g}", ["v(out)"])
-    return d[:, 0] - d[0, 0], d[:, 1]
+    for opts in (".options method=gear\n", "", ".options method=gear reltol=5e-3 itl4=200\n"):
+        d = ng_wrdata(channel(**over) + extra + src + opts,
+                      f"tran {step:.3g} {tstop:.6g} {tstop-2*T:.6g} {step:.3g}", ["v(out)"],
+                      timeout=180, allow_fail=True)
+        if d is not None and len(d) > 10:
+            return d[:, 0] - d[0, 0], d[:, 1]
+    print(f"    ! square {freq:g} Hz {over} {extra.strip()} did not finish (likely oscillating)")
+    return None
 
 
 def square_metrics(t, v, freq):
@@ -746,37 +764,42 @@ def loop_margins(extra="", **over):
 
 
 def fig14():
-    """Square-wave response: load / stability table, v1.1 vs v1.3, plus 1 kHz and 40 Hz."""
+    """Square-wave response: load / stability table, v1.1 vs v1.4, plus 1 kHz and 40 Hz."""
     rows = []
-    for ver, vov in [("v1.1", V11), ("v1.3", {})]:
+    for ver, vov in [("v1.1", V11), ("v1.3", V13), ("v1.4", {})]:
         for name, ex, ov in LOADS:
             fc, pm, gm = loop_margins(ex, **ov, **vov)
-            t, v = square(1e4, extra=ex, **ov, **vov)
-            o, r, _ = square_metrics(t, v, 1e4)
+            sq = square(1e4, extra=ex, **ov, **vov)
+            o, r, _ = square_metrics(*sq, 1e4) if sq else (float("nan"), float("nan"), 0)
             rows.append((ver, name, fc, pm, gm, o, r))
     write_csv("fig14_square_loads.csv", ["version", "load", "crossover_Hz", "phase_margin_deg", "gain_margin_dB",
                                          "overshoot_10kHz_pct", "rise_10_90_us"], rows)
     fig, axs = plt.subplots(2, 2, figsize=(12.0, 8.6))
     a = axs[0, 0]
     for lab, ov, col, lw in [("v1.1, no load (oscillates)", dict(RL="1e6", **V11), C2, 1.0),
-                             ("v1.3, no load", dict(RL="1e6"), C3, 1.8), ("v1.3, 4 ohm", {}, C1, 1.8)]:
-        t, v = square(1e4, **ov)
-        a.plot(t * 1e6, v, color=col, lw=lw, label=lab)
-    a.set(title="10 kHz square: v1.1 vs v1.3", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
+                             ("v1.4, no load", dict(RL="1e6"), C3, 1.8), ("v1.4, 4 ohm", {}, C1, 1.8)]:
+        sq = square(1e4, **ov)
+        if sq:
+            a.plot(sq[0] * 1e6, sq[1], color=col, lw=lw, label=lab)
+    a.set(title="10 kHz square: v1.1 vs v1.4", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
     a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3, fontsize=8.5)
     a = axs[0, 1]
     for (name, ex, ov), col in zip([LOADS[0], LOADS[2], LOADS[3], LOADS[5]], [C1, C2, C3, C4]):
         t, v = square(1e4, extra=ex, **ov)
-        o = [r[5] for r in rows if r[0] == "v1.3" and r[1] == name][0]
+        o = [r[5] for r in rows if r[0] == "v1.4" and r[1] == name][0]
         a.plot(t * 1e6, v, color=col, lw=1.6, label=f"{name}: overshoot {o:.0f} %")
-    a.set(title="10 kHz square, v1.3, reactive loads", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200))
+    a.set(title="10 kHz square, v1.4, reactive loads", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200))
     a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8.5)
     for a, fq in [(axs[1, 0], 1e3), (axs[1, 1], 40.0)]:
-        t, v = square(fq)
+        sq = square(fq)
+        if not sq:
+            a.set(title=f"{fq:g} Hz square: simulation did not finish")
+            continue
+        t, v = sq
         _, r, ti = square_metrics(t, v, fq)
         lab = f"rise {r:.1f} us" if fq >= 1e3 else f"tilt {ti:.0f} % over 1/8 period"
         a.plot(t * 1e3, v, color=C1, lw=1.6)
-        a.set(title=f"{fq/1e3:g} kHz square, v1.3, 4 ohm ({lab})" if fq >= 1e3 else f"{fq:g} Hz square, v1.3, 4 ohm ({lab})", xlabel="Time (ms)", ylabel="Speaker (V)", xlim=(0, 2e3 / fq))
+        a.set(title=f"{fq/1e3:g} kHz square, v1.4, 4 ohm ({lab})" if fq >= 1e3 else f"{fq:g} Hz square, v1.4, 4 ohm ({lab})", xlabel="Time (ms)", ylabel="Speaker (V)", xlim=(0, 2e3 / fq))
         rows2 = (f"{fq:g}Hz", r, ti)
         print(f"    {fq:g} Hz: rise {r:.1f} us, tilt {ti:.1f} %")
     fig.tight_layout()
@@ -785,10 +808,10 @@ def fig14():
 
 
 def fig15():
-    """Loop gain and phase margin: v1.1 vs v1.3, nominal OPT and worst grid cases."""
+    """Loop gain and phase margin: v1.1 / v1.3 / v1.4, nominal OPT and worst grid cases."""
     rows = []
     fig, (a1, a2) = plt.subplots(2, 1, figsize=(7.6, 6.6), sharex=True, gridspec_kw=dict(height_ratios=[1.2, 1]))
-    for lab, ov, col in [("v1.1", V11, C2), ("v1.3", {}, C1)]:
+    for lab, ov, col in [("v1.1", V11, C2), ("v1.3", V13, C4), ("v1.4", {}, C1)]:
         f, mag, ph = loop_gain(**ov)
         fc, pm, gm = margins(f, mag, ph)
         rows.append(("nominal", lab, fc, pm, gm))
@@ -802,7 +825,7 @@ def fig15():
     a2.set(xlabel="Frequency (Hz)", ylabel="Phase of T (deg)", xlim=(1, 1e7), ylim=(-200, 200))
     import itertools
     grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
-    for lab, ov in [("v1.1", V11), ("v1.3", {})]:
+    for lab, ov in [("v1.1", V11), ("v1.3", V13), ("v1.4", {})]:
         def one(g):
             raa, tu, lh, kc = g
             return margins(*loop_gain(RAA=raa, TU=tu, LH=lh, KC=kc, **ov)) + (g,)
@@ -818,9 +841,128 @@ def fig15():
     save(fig, "fig15_loop_gain.png",
          "Middlebrook voltage injection at the feedback take-off (source Z ~0.3 ohm << RFB). Grid results: docs/data/fig15_loop_gain.csv")
 
+# ---------------------------------------------------------------- ELT 10 load (estimated model)
+SPKR = dict(SPK=1, RL="1e6")                 # estimated ELT 10 instead of the 4 ohm resistor
+
+
+def speaker_impedance():
+    d = ng_wrdata(f".include {model_path('elt10_est.inc')}\nX1 a 0 ELT10_EST\nIS 0 a AC 1\n",
+                  "ac dec 100 10 40k", ["vm(a)", "vp(a)"])
+    return d[:, 0], d[:, 1], np.degrees(d[:, 2])
+
+
+def tone_point(freq, amp, **over):
+    """One tone at any frequency: (P W into the 4 ohm nominal, THD %)."""
+    T = 1.0 / freq
+    settle = max(0.15, 12 * T)
+    win = max(2, int(np.ceil(0.02 / T))) * T
+    step = min(10e-6, T / 400)
+    net = (channel(**over) + f"VIN in 0 SIN(0 {amp} {freq:g})\n.control\n"
+           f"tran {step:.3g} {settle+win:.6g} {settle:.6g} {step:.3g}\nfourier {freq:g} v(out)\n"
+           f"meas tran vr rms v(out) from={settle:.6g} to={settle+win:.6g}\n.endc\n.end\n")
+    for opts in ("", ".options method=gear reltol=2e-3\n"):
+        o, _ = ngspice(net.replace(".control", opts + ".control", 1), timeout=120)
+        m1, m2 = re.search(r"THD: (\S+)", o), re.search(r"vr\s+=\s+(\S+)", o)
+        if m1 and m2:
+            return float(m2.group(1)) ** 2 / 4.0, float(m1.group(1))
+    return None
+
+
+def p_at_thd_f(freq, limit=1.0, lo=0.2, hi=1.4, iters=7, **over):
+    best = 0.0
+    for _ in range(iters):
+        mid = 0.5 * (lo + hi)
+        r = tone_point(freq, mid, **over)
+        if r and r[1] <= limit:
+            lo, best = mid, r[0]
+        else:
+            hi = mid
+    return best
+
+
+def fig16():
+    """Estimated ELT 10 impedance."""
+    f, z, ph = speaker_impedance()
+    write_csv("fig16_elt10_impedance.csv", ["freq_Hz", "Z_ohm", "phase_deg"], list(zip(f, z, ph)))
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(7.6, 6.0), sharex=True, gridspec_kw=dict(height_ratios=[1.4, 1]))
+    a1.semilogx(f, z, color=C1)
+    a1.axhline(4, color=INK2, lw=1, ls=":")
+    a1.text(11, 4.3, "4 ohm nominal", color=INK2, fontsize=9)
+    i = np.argmin(np.where(f > 100, z, 1e9))
+    a1.annotate(f"min {z[i]:.2f} ohm @ {f[i]:.0f} Hz", (f[i], z[i]), (f[i] * 1.6, 1.2),
+                arrowprops=dict(arrowstyle="-", color=INK2, lw=1), fontsize=9)
+    for fr, lab in [(25, "box/driver"), (70, "peaks"), (40, "fb")]:
+        pass
+    a1.set(title="ELAC ELT 10: ESTIMATED impedance model", ylabel="|Z| (ohm)", ylim=(0, 16))
+    a2.semilogx(f, ph, color=C2)
+    a2.axhline(0, color=INK2, lw=1, ls=":")
+    a2.set(xlabel="Frequency (Hz)", ylabel="Phase (deg)", xlim=(10, 40e3), ylim=(-60, 60))
+    fig.align_ylabels()
+    save(fig, "fig16_elt10_impedance.png",
+         "Not measured: built from published specs + typical driver values (models/elt10_est.inc). Data: docs/data/fig16_elt10_impedance.csv")
+
+
+def fig17():
+    """v1.4 driving the estimated ELT 10 vs a 4 ohm resistor."""
+    fig, axs = plt.subplots(1, 3, figsize=(13.6, 4.4))
+    # (a) frequency response re 1 kHz into 4 ohm
+    rows = []
+    ref = None
+    for lab, ov, col in [("4 ohm resistor", {}, C1), ("ELT 10 model", SPKR, C2)]:
+        d = ng_wrdata(channel(**ov) + "VIN in 0 AC 1\n", "ac dec 100 10 40k", ["vdb(out)"])
+        if ref is None:
+            ref = np.interp(3.0, np.log10(d[:, 0]), d[:, 1])
+        axs[0].semilogx(d[:, 0], d[:, 1] - ref, color=col, label=lab)
+        if ov:
+            dev = d[:, 1] - ref
+            band = (d[:, 0] >= 20) & (d[:, 0] <= 20e3)
+            rows.append(("response_dev_20Hz_20kHz_dB", dev[band].min(), dev[band].max()))
+    axs[0].set(title="Frequency response (re 1 kHz, 4 ohm)", xlabel="Frequency (Hz)", ylabel="dB", xlim=(10, 40e3), ylim=(-4, 3))
+    axs[0].legend(loc="lower center", fontsize=9)
+    # (b) 10 kHz square into the ELT 10, v1.1 / v1.3 / v1.4
+    for lab, ov, col in [("v1.1", dict(**SPKR, **V11), C2), ("v1.3", dict(**SPKR, **V13), C4), ("v1.4", SPKR, C1)]:
+        sq = square(1e4, **ov)
+        o, r, _ = square_metrics(*sq, 1e4) if sq else (float("nan"), 0, 0)
+        fc, pm, gm = loop_margins(**ov)
+        if not sq:
+            rows.append((f"{lab}_ELT10_square_PM_GM", o, pm, gm))
+            continue
+        t, v = sq
+        rows.append((f"{lab}_ELT10_square_PM_GM", o, pm, gm))
+        axs[1].plot(t * 1e6, v, color=col, lw=1.6 if lab == "v1.4" else 1.0,
+                    label=f"{lab}: overshoot {o:.0f} %" + (f", PM {pm:.0f} deg, GM {gm:.1f} dB" if np.isfinite(pm) else " (oscillates)"))
+    axs[1].set(title="10 kHz square into ELT 10 model", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
+    axs[1].legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), fontsize=8.5)
+    # (c) max power vs frequency
+    freqs = [30, 40, 60, 100, 300, 1000, 3000, 10000]
+    jobs = [(f, ov) for ov in ({}, SPKR) for f in freqs]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        ps = list(ex.map(lambda j: p_at_thd_f(j[0], **j[1]), jobs))
+    p4, pe = ps[:len(freqs)], ps[len(freqs):]
+    v4, ve = np.sqrt(np.array(p4) * 4), np.sqrt(np.array(pe) * 4)
+    axs[2].semilogx(freqs, v4, "o-", color=C1, ms=5, mec=SURF, mew=1, label="4 ohm resistor")
+    axs[2].semilogx(freqs, ve, "o-", color=C2, ms=5, mec=SURF, mew=1, label="ELT 10 model")
+    axs[2].set(title="Max output voltage at 1 % THD", xlabel="Frequency (Hz)", ylabel="Speaker voltage (V rms)", ylim=(0, None))
+    axs[2].legend(loc="lower center", fontsize=9)
+    fig.tight_layout()
+    write_csv("fig17_elt10_power.csv", ["freq_Hz", "Vrms_1pct_4ohm", "Vrms_1pct_ELT10", "P_4ohm_W"],
+              list(zip(freqs, v4, ve, p4)))
+    # worst-case margins over the OPT grid with the speaker load
+    import itertools
+    grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
+    for lab, ov in [("v1.1", dict(**SPKR, **V11)), ("v1.3", dict(**SPKR, **V13)), ("v1.4", SPKR)]:
+        with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+            res = list(ex.map(lambda g: loop_margins(RAA=g[0], TU=g[1], LH=g[2], KC=g[3], **ov), grid))
+        rows.append((f"{lab}_ELT10_grid_worst_PM_GM", float(np.nanmin([r[1] for r in res])), float(np.nanmin([r[2] for r in res]))))
+    write_csv("fig17_elt10_summary.csv", ["item", "a", "b", "c"], [r + ("",) * (4 - len(r)) for r in rows])
+    for r in rows:
+        print("   ", r)
+    save(fig, "fig17_elt10_load.png",
+         "v1.4 unless noted. Output voltage at 1 % THD. OPT core saturation at low frequency is not modelled.")
+
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)

@@ -1,0 +1,8 @@
+item,a,b,c
+response_dev_20Hz_20kHz_dB,-0.801609,0.397824,
+v1.1_ELT10_square_PM_GM,480.94,nan,nan
+v1.3_ELT10_square_PM_GM,0.761184,75.5616,15.6756
+v1.4_ELT10_square_PM_GM,0.435851,99.4094,27.2719
+v1.1_ELT10_grid_worst_PM_GM,nan,nan,
+v1.3_ELT10_grid_worst_PM_GM,0.773136,-1.64285,
+v1.4_ELT10_grid_worst_PM_GM,77.9246,14.1122,
