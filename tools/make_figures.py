@@ -659,9 +659,168 @@ def fig13():
     write_csv("fig13_opt_lp_kc.csv", ["param", "value", "fix", "f_minus3dB_low_Hz", "f_minus3dB_high_Hz", "hf_peak_dB", "hf_peak_Hz"], rows)
     save(fig, "fig13_opt_lp_kc.png",
          "v1.3 (step 3.3k+470p, Zobel 4.7R+100n); dashed = v1.1 without them. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
+# ---------------------------------------------------------------- square wave & loop gain
+V11 = dict(RZOB="1e9", RSTEP="1e9")          # v1.1 = no HF compensation
+
+
+def square(freq, amp=0.16, extra="", cycles=None, **over):
+    """Output for a +/-amp square wave (20 ns edges) -> (t_s, v_out) of the last 2 periods."""
+    T = 1.0 / freq
+    n = cycles or max(4, int(np.ceil(0.25 / T)) if freq < 200 else 12)
+    tstop = n * T
+    step = min(T / 4000, 50e-9) if freq >= 1e3 else T / 4000
+    # two unipolar pulses in series: starts at 0 V, so the DC operating point is the idle one
+    w = T / 2 - 20e-9
+    src = (f"VIN in in2 PULSE(0 {amp} 0 20n 20n {w:.6g} {T:.6g})\n"
+           f"VIN2 in2 0 PULSE(0 {-amp} {T/2:.6g} 20n 20n {w:.6g} {T:.6g})\n")
+    d = ng_wrdata(channel(**over) + extra + src + ".options method=gear\n",
+                  f"tran {step:.3g} {tstop:.6g} {tstop-2*T:.6g} {step:.3g}", ["v(out)"])
+    return d[:, 0] - d[0, 0], d[:, 1]
+
+
+def square_metrics(t, v, freq):
+    """Overshoot %, 10-90 % rise time (us), tilt % (from 1/4 to 1/2 of the half-period)."""
+    T = 1.0 / freq
+    half = (t % T) < T / 2                     # first half of each period = high level
+    hi_plateau = v[half & ((t % T) > 0.35 * T)].mean()
+    lo_plateau = v[~half & ((t % T) > 0.85 * T)].mean()
+    span = hi_plateau - lo_plateau
+    over = (v[half].max() - hi_plateau) / span * 100
+    seg = (t >= 0) & (t < T / 2)
+    tt, vv = t[seg], v[seg]
+    lv, hv = lo_plateau + 0.1 * span, lo_plateau + 0.9 * span
+    try:
+        rise = (tt[np.nonzero(vv >= hv)[0][0]] - tt[np.nonzero(vv >= lv)[0][0]]) * 1e6
+    except IndexError:
+        rise = float("nan")
+    early = v[half & ((t % T) > 0.25 * T) & ((t % T) < 0.3 * T)].mean()   # tilt: meaningful for f <= 1 kHz
+    late = v[half & ((t % T) > 0.45 * T) & ((t % T) < 0.5 * T)].mean()
+    tilt = (early - late) / span * 100
+    return over, rise, tilt
+
+
+def loop_gain(**over):
+    """Middlebrook voltage injection between the speaker node and RFB/CFB:
+    T(f) = -V(out)/V(fbi). Returns f, |T| dB, phase deg."""
+    txt = channel(**over)
+    for a, b in (("RFB out v1k", "RFB fbi v1k"), ("CFB out v1k", "CFB fbi v1k")):
+        assert a in txt
+        txt = txt.replace(a, b)
+    txt += "VINJ fbi out AC 1\nVIN in 0 0\n"
+    d = ng_wrdata(txt, "ac dec 100 1 1e7", ["vr(out)", "vi(out)", "vr(fbi)", "vi(fbi)"])
+    f = d[:, 0]
+    T = -(d[:, 1] + 1j * d[:, 2]) / (d[:, 3] + 1j * d[:, 4])
+    return f, 20 * np.log10(np.abs(T)), np.degrees(np.angle(T))
+
+
+def margins(f, mag, ph):
+    """Unity-gain crossover (highest), phase margin, gain margin."""
+    hf = f > 1e3
+    idx = np.nonzero(hf[:-1] & (mag[:-1] > 0) & (mag[1:] <= 0))[0]
+    if len(idx) == 0:
+        return float("nan"), float("nan"), float("nan")
+    i = idx[-1]
+    fc = f[i]
+    pm = 180 - abs(ph[i])
+    # gain margin: |T| where phase crosses +/-180 above fc
+    unwrapped = np.degrees(np.unwrap(np.radians(ph)))
+    crosses = np.nonzero(hf[:-1] & (np.abs(unwrapped[:-1]) < 180) & (np.abs(unwrapped[1:]) >= 180))[0]
+    gm = -mag[crosses[0]] if len(crosses) else float("nan")
+    return fc, pm, gm
+
+
+LOADS = [("4 ohm", "", {}), ("8 ohm", "", {"RL": "8"}),
+         ("4 ohm || 0.47 uF", "CLD out 0 0.47u\n", {}), ("4 ohm || 2 uF", "CLD out 0 2u\n", {}),
+         ("0.47 uF only", "CLD out 0 0.47u\n", {"RL": "1e6"}), ("2 uF only", "CLD out 0 2u\n", {"RL": "1e6"}),
+         ("no load", "", {"RL": "1e6"})]
+
+
+def loop_margins(extra="", **over):
+    txt = channel(**over)
+    for a, b in (("RFB out v1k", "RFB fbi v1k"), ("CFB out v1k", "CFB fbi v1k")):
+        txt = txt.replace(a, b)
+    d = ng_wrdata(txt + extra + "VINJ fbi out AC 1\nVIN in 0 0\n", "ac dec 100 1 1e7",
+                  ["vr(out)", "vi(out)", "vr(fbi)", "vi(fbi)"])
+    T = -(d[:, 1] + 1j * d[:, 2]) / (d[:, 3] + 1j * d[:, 4])
+    return margins(d[:, 0], 20 * np.log10(np.abs(T)), np.degrees(np.angle(T)))
+
+
+def fig14():
+    """Square-wave response: load / stability table, v1.1 vs v1.3, plus 1 kHz and 40 Hz."""
+    rows = []
+    for ver, vov in [("v1.1", V11), ("v1.3", {})]:
+        for name, ex, ov in LOADS:
+            fc, pm, gm = loop_margins(ex, **ov, **vov)
+            t, v = square(1e4, extra=ex, **ov, **vov)
+            o, r, _ = square_metrics(t, v, 1e4)
+            rows.append((ver, name, fc, pm, gm, o, r))
+    write_csv("fig14_square_loads.csv", ["version", "load", "crossover_Hz", "phase_margin_deg", "gain_margin_dB",
+                                         "overshoot_10kHz_pct", "rise_10_90_us"], rows)
+    fig, axs = plt.subplots(2, 2, figsize=(12.0, 8.6))
+    a = axs[0, 0]
+    for lab, ov, col, lw in [("v1.1, no load (oscillates)", dict(RL="1e6", **V11), C2, 1.0),
+                             ("v1.3, no load", dict(RL="1e6"), C3, 1.8), ("v1.3, 4 ohm", {}, C1, 1.8)]:
+        t, v = square(1e4, **ov)
+        a.plot(t * 1e6, v, color=col, lw=lw, label=lab)
+    a.set(title="10 kHz square: v1.1 vs v1.3", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
+    a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3, fontsize=8.5)
+    a = axs[0, 1]
+    for (name, ex, ov), col in zip([LOADS[0], LOADS[2], LOADS[3], LOADS[5]], [C1, C2, C3, C4]):
+        t, v = square(1e4, extra=ex, **ov)
+        o = [r[5] for r in rows if r[0] == "v1.3" and r[1] == name][0]
+        a.plot(t * 1e6, v, color=col, lw=1.6, label=f"{name}: overshoot {o:.0f} %")
+    a.set(title="10 kHz square, v1.3, reactive loads", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200))
+    a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8.5)
+    for a, fq in [(axs[1, 0], 1e3), (axs[1, 1], 40.0)]:
+        t, v = square(fq)
+        _, r, ti = square_metrics(t, v, fq)
+        lab = f"rise {r:.1f} us" if fq >= 1e3 else f"tilt {ti:.0f} % over 1/8 period"
+        a.plot(t * 1e3, v, color=C1, lw=1.6)
+        a.set(title=f"{fq/1e3:g} kHz square, v1.3, 4 ohm ({lab})" if fq >= 1e3 else f"{fq:g} Hz square, v1.3, 4 ohm ({lab})", xlabel="Time (ms)", ylabel="Speaker (V)", xlim=(0, 2e3 / fq))
+        rows2 = (f"{fq:g}Hz", r, ti)
+        print(f"    {fq:g} Hz: rise {r:.1f} us, tilt {ti:.1f} %")
+    fig.tight_layout()
+    save(fig, "fig14_square_wave.png",
+         "Input +/-0.16 V square (about 4 V peak into 4 ohm). OPT 40 H / k 0.9995 / 43 % UL / 6 k. Data: docs/data/fig14_square_loads.csv")
+
+
+def fig15():
+    """Loop gain and phase margin: v1.1 vs v1.3, nominal OPT and worst grid cases."""
+    rows = []
+    fig, (a1, a2) = plt.subplots(2, 1, figsize=(7.6, 6.6), sharex=True, gridspec_kw=dict(height_ratios=[1.2, 1]))
+    for lab, ov, col in [("v1.1", V11, C2), ("v1.3", {}, C1)]:
+        f, mag, ph = loop_gain(**ov)
+        fc, pm, gm = margins(f, mag, ph)
+        rows.append(("nominal", lab, fc, pm, gm))
+        a1.semilogx(f, mag, color=col, label=f"{lab}: crossover {fc/1e3:.0f} kHz, PM {pm:.0f} deg, GM {gm:.1f} dB")
+        a2.semilogx(f, ph, color=col)
+    a1.axhline(0, color=INK2, lw=1, ls=":")
+    for y in (-180, 180):
+        a2.axhline(y, color=INK2, lw=1, ls=":")
+    a1.set(title="Loop gain T(f) = -V(out)/V(inj), nominal OPT", ylabel="|T| (dB)", ylim=(-40, 30))
+    a1.legend(loc="lower left", fontsize=9)
+    a2.set(xlabel="Frequency (Hz)", ylabel="Phase of T (deg)", xlim=(1, 1e7), ylim=(-200, 200))
+    import itertools
+    grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
+    for lab, ov in [("v1.1", V11), ("v1.3", {})]:
+        def one(g):
+            raa, tu, lh, kc = g
+            return margins(*loop_gain(RAA=raa, TU=tu, LH=lh, KC=kc, **ov)) + (g,)
+        with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+            res = list(ex.map(one, grid))
+        pms = np.array([r[1] for r in res]); gms = np.array([r[2] for r in res])
+        i, j = int(np.nanargmin(pms)), int(np.nanargmin(gms))
+        rows.append(("grid_worst_PM", lab, res[i][0], res[i][1], res[i][2]))
+        rows.append(("grid_worst_GM", lab, res[j][0], res[j][1], res[j][2]))
+        print(f"    {lab}: worst PM {res[i][1]:.0f} deg at {res[i][3]}, worst GM {res[j][2]:.1f} dB at {res[j][3]}")
+    fig.align_ylabels()
+    write_csv("fig15_loop_gain.csv", ["case", "version", "crossover_Hz", "phase_margin_deg", "gain_margin_dB"], rows)
+    save(fig, "fig15_loop_gain.png",
+         "Middlebrook voltage injection at the feedback take-off (source Z ~0.3 ohm << RFB). Grid results: docs/data/fig15_loop_gain.csv")
+
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)

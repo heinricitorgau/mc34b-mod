@@ -1,0 +1,7 @@
+case,version,crossover_Hz,phase_margin_deg,gain_margin_dB
+nominal,v1.1,933254,25.0154,4.52103
+nominal,v1.3,77624.7,127.835,22.886
+grid_worst_PM,v1.1,1.41254e+06,0.00118001,-0.270675
+grid_worst_GM,v1.1,2.51189e+06,54.1842,-13.5366
+grid_worst_PM,v1.3,1.41254e+06,29.8616,5.18989
+grid_worst_GM,v1.3,1.41254e+06,29.8616,5.18989

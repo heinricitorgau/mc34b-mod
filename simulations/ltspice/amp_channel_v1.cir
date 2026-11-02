@@ -19,6 +19,7 @@
 .param VBPLUS=400        ; ideal B+ (V) for this single-channel netlist
 .param RSTEP=3.3k CSTEP=470p ; V1 plate step network (v1.3). Disable: RSTEP=1e9
 .param RZOB=4.7 CZOB=100n   ; output Zobel (v1.3). Disable: RZOB=1e9
+.param RL=4                 ; resistive load (ohm); 1e6 = no load
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
 .param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
 * ---- power supply (ideal for v1; replace with PSUD2-derived model later)
@@ -93,7 +94,7 @@ K45 L4 L5 {KC}
 * ---- output Zobel (v1.3): damps the ~1.1-1.4 MHz loop resonance, see README 4.3
 RZ out nz {RZOB}
 CZ nz 0 {CZOB}
-RLOAD out 0 4
+RLOAD out 0 {RL}
 * ---- stimulus & analysis -------------------------------------------
 VIN in 0 SIN(0 {AMP} 1k) AC 1
 .tran 0 200m 150m 10u
