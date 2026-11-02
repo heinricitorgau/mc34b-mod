@@ -5,7 +5,7 @@
 *  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v2).
 *  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-42V,
 *  V1 0.65 mA / Vgk -0.90 V, LTP 4.9 mA per side (closed-loop DC point),
-*  gain 24.8x (~20 dB NFB), -3 dB 7.6 Hz - 56 kHz, ~27 W @ 0.45% THD
+*  v1.3: + V1 step network 3.3k+470p and output Zobel 4.7R+100n (HF stability)
 * =====================================================================
 .include ../../models/tubes_amp.inc
 .options plotwinsize=0 numdgt=7
@@ -17,6 +17,8 @@
 .param RT=15k RLA=18k RLB=18.82k
 .param RFB=2.7k CFB=1n
 .param VBPLUS=400        ; ideal B+ (V) for this single-channel netlist
+.param RSTEP=3.3k CSTEP=470p ; V1 plate step network (v1.3). Disable: RSTEP=1e9
+.param RZOB=4.7 CZOB=100n   ; output Zobel (v1.3). Disable: RZOB=1e9
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
 .param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
 * ---- power supply (ideal for v1; replace with PSUD2-derived model later)
@@ -32,6 +34,9 @@ Rin in ing 1k
 Rgl ing 0 470k
 X1 v1a ing v1k 6N2
 RA1 b3 v1a {RA1}
+* lag step network on V1 plate (v1.3): cuts loop gain near 1 MHz, see README 4.3
+RST v1a nst {RSTEP}
+CST nst 0 {CSTEP}
 RK1 v1k fb 100
 RK2 fb 0 {RK2}
 CK2 fb 0 220u
@@ -85,6 +90,9 @@ K25 L2 L5 {KC}
 K34 L3 L4 {KC}
 K35 L3 L5 {KC}
 K45 L4 L5 {KC}
+* ---- output Zobel (v1.3): damps the ~1.1-1.4 MHz loop resonance, see README 4.3
+RZ out nz {RZOB}
+CZ nz 0 {CZOB}
 RLOAD out 0 4
 * ---- stimulus & analysis -------------------------------------------
 VIN in 0 SIN(0 {AMP} 1k) AC 1

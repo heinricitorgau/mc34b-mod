@@ -229,20 +229,21 @@ def fig3():
 
 
 def fig4():
-    sets = [("Open loop (no NFB)", dict(RFB="1e9"), C1),
-            ("NFB 2.7k, no lead cap", dict(RFB="2.7k", CFB="1p"), C2),
-            ("NFB 2.7k || 1nF  (v1 design)", dict(RFB="2.7k", CFB="1n"), C3)]
+    sets = [("Open loop (v1.3 forward path)", dict(RFB="1e9"), C1, "-"),
+            ("NFB 2.7k, no lead cap", dict(RFB="2.7k", CFB="1p", RZOB="1e9", RSTEP="1e9"), C2, "-"),
+            ("v1.1: NFB 2.7k || 1nF", dict(RZOB="1e9", RSTEP="1e9"), C4, "--"),
+            ("v1.3: + step 3.3k/470p + Zobel 4.7R/100n", dict(), C3, "-")]
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
-    for lab, ov, col in sets:
-        d = ng_wrdata(channel(**ov) + "VIN in 0 AC 1\n", "ac dec 40 1 1e6", ["vdb(out)"])
-        ax.semilogx(d[:, 0], d[:, 1], color=col, label=lab)
+    for lab, ov, col, ls in sets:
+        d = ng_wrdata(channel(**ov) + "VIN in 0 AC 1\n", "ac dec 100 1 5e6", ["vdb(out)"])
+        ax.semilogx(d[:, 0], d[:, 1], color=col, ls=ls, label=lab)
     ax.axvspan(20, 20e3, color=GRID, alpha=0.45, lw=0)
     ax.text(640, 53, "audio band 20 Hz-20 kHz", color=INK2, fontsize=9, ha="center", va="top")
     ax.set(title="Frequency response, input -> 4 ohm load", xlabel="Frequency (Hz)",
-           ylabel="Voltage gain (dB)", xlim=(1, 1e6), ylim=(5, 55))
+           ylabel="Voltage gain (dB)", xlim=(1, 5e6), ylim=(-10, 55))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2)
     save(fig, "fig4_freq_response.png",
-         "OPT model: 40 H primary, k = 0.9995, 43 % UL. Lead cap removes the +4.7 dB peak near 130 kHz.")
+         "OPT model: 40 H primary, k = 0.9995, 43 % UL, 6 k. HF compensation choice: README section 4.3.")
 
 
 def fig5():
@@ -519,7 +520,7 @@ def read_csv(name):
         return list(csv.DictReader(fh))
 
 
-ZOBEL = "RZ out nz 4.7\nCZ nz 0 100n\n"      # candidate fix, see README section 4.3
+NO_COMP = dict(RZOB="1e9", RSTEP="1e9")     # removes the v1.3 HF compensation, for comparison
 
 
 def ac_curve(extra="", **over):
@@ -623,7 +624,7 @@ def plot_fig12():
     axs[2].set(title="Damping factor at 1 kHz", xlabel="OPT primary (k ohm, p-p)", ylabel="4 ohm / Zout", ylim=(0, None))
     _bottom_legend(fig, hs, labs, 4)
     save(fig, "fig12_opt_raa_ul.png",
-         "B+ 400 V ideal, bias -42 V, NFB 2.7k || 1n unchanged. Data: docs/data/fig12_opt_raa_ul.csv")
+         "v1.3 circuit, B+ 400 V ideal, bias -42 V. Data: docs/data/fig12_opt_raa_ul.csv")
 
 
 def fig13():
@@ -637,16 +638,16 @@ def fig13():
         axs[0].semilogx(f, db, color=col, label=lab)
         axs[1].semilogx(f, db, color=col, label=lab)
         m = ac_metrics(LH=lh)
-        rows.append(("Lp_H", 4 * lh, "none", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
-    f, db = ac_curve(ZOBEL, LH=5)
-    axs[1].semilogx(f, db, color=C2, ls="--", lw=1.6, label="Lp = 20 H + Zobel 4.7R/100n")
-    m = ac_metrics(ZOBEL, LH=5)
-    rows.append(("Lp_H", 20, "zobel", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("Lp_H", 4 * lh, "v1.3", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+    f, db = ac_curve(LH=5, **NO_COMP)
+    axs[1].semilogx(f, db, color=C2, ls="--", lw=1.6, label="Lp = 20 H, v1.1 (no HF compensation)")
+    m = ac_metrics(LH=5, **NO_COMP)
+    rows.append(("Lp_H", 20, "v1.1_no_comp", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     for kc, col in zip([0.998, 0.999, 0.9995, 0.9998], [C1, C2, C3, C4]):
         f, db = ac_curve(KC=kc)
         axs[2].semilogx(f, db, color=col, label=f"k = {kc}  (leakage ~{40*(1-kc**2)*1e3:.0f} mH)" + ("  (v1)" if kc == 0.9995 else ""))
         m = ac_metrics(KC=kc)
-        rows.append(("k", kc, "none", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("k", kc, "v1.3", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     axs[0].set(title="Primary inductance: low end", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)", xlim=(0.5, 2e3), ylim=(-15, 4))
     axs[1].set(title="Primary inductance: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
     axs[2].set(title="Coupling / leakage: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
@@ -657,7 +658,7 @@ def fig13():
     fig.tight_layout()
     write_csv("fig13_opt_lp_kc.csv", ["param", "value", "fix", "f_minus3dB_low_Hz", "f_minus3dB_high_Hz", "hf_peak_dB", "hf_peak_Hz"], rows)
     save(fig, "fig13_opt_lp_kc.png",
-         "NFB 2.7k || 1n unchanged; 40 H primary is v1. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
+         "v1.3 (step 3.3k+470p, Zobel 4.7R+100n); dashed = v1.1 without them. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
            fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
