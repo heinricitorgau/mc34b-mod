@@ -1,6 +1,7 @@
 * =====================================================================
 *  psu_v1.cir  --  B+ power supply, PSUD2-equivalent model (LTspice / ngspice)
 *  Mains 110 V / 60 Hz (Taiwan) -> HT winding -> Si bridge -> C1-R1-C2 (CRC)
+*  + bias winding -> half-wave -> CB1-RBF-CB2 -> negative bias bus "nbus" (v2)
 *  Load = constant-current sink, exactly as PSUD2 models it.
 *  Same values as simulations/psud2/README.md, so the two tools can be compared.
 *  Assumed MC34-B transformer values (not measured): see README section 3.
@@ -13,6 +14,10 @@
 .param RFIL=47            ; CRC series resistor (drop ~7 V idle)
 .param COUT=470u ESR2=0.3   ; B+ cap + ESR
 .param ILOAD=0.158     ; stereo idle 158 mA ; full power both channels ~0.30
+.param VBIASW=45       ; bias winding, Vrms at nominal mains (assumed)
+.param RBWIN=50        ; bias winding source resistance (ohm)
+.param CB1=47u RBF=1k CB2=100u   ; bias CRC filter
+.param RBLOAD=25.5k    ; standalone test load = four 102k bias dividers in parallel
 * ---- transformer HT winding (Thevenin: ideal sine + source resistance)
 VHT ht1 hts SIN(0 {VSEC*MAINS*sqrt(2)} 60)
 RS  hts ht2 {RSEC}
@@ -29,11 +34,21 @@ RE1 c1n 0 {ESR1}
 RF1 raw bp {RFIL}
 CF2 bp c2n {COUT}
 RE2 c2n 0 {ESR2}
+* ---- bias supply: half-wave negative rectifier from its own winding
+VBW bwa 0 SIN(0 {VBIASW*MAINS*sqrt(2)} 60)
+RBWS bwa bwb {RBWIN}
+DB nb1 bwb DPWR
+CBF1 nb1 0 {CB1}
+RBF1 nb1 nbus {RBF}
+CBF2 nbus 0 {CB2}
 * ---- load (current sink, ramps on in 10 ms)
 ILD bp 0 PWL(0 0 10m {ILOAD})
+RBL nbus 0 {RBLOAD}
 * ---- analysis
 .tran 0 3 2.9 20u
 .meas TRAN Vbp AVG V(bp) FROM 2.9 TO 3
 .meas TRAN Vbp_pp PP V(bp) FROM 2.9 TO 3
 .meas TRAN Vraw_pp PP V(raw) FROM 2.9 TO 3
+.meas TRAN Vnbus AVG V(nbus) FROM 2.9 TO 3
+.meas TRAN Vnbus_pp PP V(nbus) FROM 2.9 TO 3
 .end

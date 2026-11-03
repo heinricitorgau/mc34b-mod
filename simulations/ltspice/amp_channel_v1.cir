@@ -1,7 +1,7 @@
 * =====================================================================
 *  amp_channel_v1.cir  --  one channel, LTspice
 *  6N2 (V1) -> DC-coupled 6N1 LTP -> 2x 6P3S-E PP, UL, fixed bias
-*  OPT 6k p-p / 43% UL / 4 ohm ; B+ 400V ; global NFB 2.7k||1n
+*  OPT 6k p-p / 43% UL / 4 ohm ; B+ 400V ; global NFB 2.7k
 *  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v2).
 *  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-42V,
 *  V1 0.65 mA / Vgk -0.90 V, LTP 4.9 mA per side (closed-loop DC point),
@@ -76,6 +76,7 @@ RKB kb 0 {RKO}
 CKB kb 0 {CKO}
 * ---- OPT 6k p-p, 43% UL, Lp(total)=4*LH=40H, coupling KC (leakage ~ 4*LH*(1-KC^2)), 4 ohm sec
 .param LH=10 TU=0.43 KC=0.9995 RAA=6k   ; half-primary L (H), UL tap, coupling, primary Z (plate-plate)
+.param CPP=1p CPS=1p   ; OPT winding capacitance: plate-plate (CPP) and primary-secondary (CPS); 1p = off
 * winding DCRs as explicit resistors (portable LTspice/ngspice)
 L1 pa n1 {LH*(1-TU)*(1-TU)}
 R1W n1 ula 35
@@ -87,6 +88,10 @@ L4 ulb n4 {LH*(1-TU)*(1-TU)}
 R4W n4 pb 35
 L5 0 n5 {16*LH/RAA}
 R5W n5 out 0.25
+* winding capacitance (lumped): plate-to-plate, and primary-to-secondary split asymmetrically
+CPPW pa pb {CPP}
+CPSA pa out {CPS/2}
+CPSB pb 0 {CPS/2}
 K12 L1 L2 {KC}
 K13 L1 L3 {KC}
 K14 L1 L4 {KC}

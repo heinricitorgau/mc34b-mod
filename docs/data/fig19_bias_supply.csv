@@ -1,0 +1,20 @@
+item,case,a,b,c,d,e,f
+startup_peak_Ik,bias supply model,210.192,0.183,,,,
+startup_peak_Ik,ideal bias source,148.972,0.0830888,,,,
+mains,bias supply model (tracks mains),0.9,362.236,-38.2999,-52.7588,30.147,10.8685
+mains,bias supply model (tracks mains),0.95,380.919,-40.1911,-55.6085,32.342,12.2592
+mains,bias supply model (tracks mains),1,399.92,-42.1785,-58.4975,34.323,13.6572
+mains,bias supply model (tracks mains),1.05,418.959,-44.184,-61.394,36.2944,15.1271
+mains,bias supply model (tracks mains),1.1,437.993,-46.1962,-64.2935,38.2829,16.6786
+mains,bias held at -42.1 V,0.9,368.594,-42.14,-59.2993,20.9693,7.70352
+mains,bias held at -42.1 V,0.95,384.433,-42.14,-59.7754,27.339,10.4663
+mains,bias held at -42.1 V,1,399.856,-42.14,-62.7954,34.4324,13.6983
+mains,bias held at -42.1 V,1.05,414.956,-42.14,-65.899,42.1379,17.3805
+mains,bias held at -42.1 V,1.1,429.787,-42.14,-69.0198,50.3774,21.5007
+pot_range,mains 0.9,-52.7588,-32.0691,-45.0002,,,
+pot_range,mains 1.0,-58.4975,-35.5573,-49.8949,,,
+pot_range,mains 1.1,-64.2935,-39.0804,-54.8386,,,
+hum_120Hz_rms_V,bias supply,matched,2.58971e-07,4.36948e-06,0.00120823,,
+hum_120Hz_rms_V,bias supply,V4 5 % low,7.47154e-06,4.62628e-06,0.00120476,,
+hum_120Hz_rms_V,ideal bias,matched,1.27865e-07,1.77933e-15,0.000110329,,
+hum_120Hz_rms_V,ideal bias,V4 5 % low,7.70035e-06,5.39132e-16,0.00011014,,

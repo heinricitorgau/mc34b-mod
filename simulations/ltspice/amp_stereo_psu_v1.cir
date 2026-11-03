@@ -3,8 +3,9 @@
 *  Sources: amp_channel_v1.cir (channel, used twice) + psu_v1.cir (B+ supply).
 *  Both channels share one transformer / bridge / CRC (B+ node "bp");
 *  each channel keeps its own RD1-CD1-RD2-CD2 decoupling (dual-mono style).
-*  Fixed bias tracks the mains (VB = VBN * MAINS), as a bias winding on the
-*  same transformer would.  .ic starts the supply near steady state.
+*  Fixed bias comes from the bias winding in psu_v1.cir (bus "nbus") through
+*  one divider + pot per output tube (wiper settings WA / WB per tube).
+*  .ic starts the supplies near steady state.
 * =====================================================================
 .include ../../models/tubes_amp.inc
 .include ../../models/elt10_est.inc
@@ -23,7 +24,11 @@
 .param DVB=0               ; V4 bias offset (V) relative to VB, for per-tube trim
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
 .param LH=10 TU=0.43 KC=0.9995 RAA=6k   ; half-primary L (H), UL tap, coupling, primary Z (plate-plate)
-.param VB={VBN*MAINS}
+.param CPP=1p CPS=1p   ; OPT winding capacitance: plate-plate (CPP) and primary-secondary (CPS); 1p = off
+* ---- per-tube bias dividers (range about -35 ... -50 V on a -58.5 V bus) ----
+.param RBTOP=15k RPOT=25k RBBOT=62k CWIPER=10u
+.param WA=0.462 WB=0.462   ; pot wiper position 0..1 (1 = most negative); 0.462 = 34.4 mA per tube (nominal tubes)
+.param VB={VBN*MAINS}   ; used only by the ideal-bias variant (build_stereo(real_bias=False))
 * ---- supply parameters (from psu_v1.cir) ----
 .param MAINS=1.0       ; mains factor: 0.9 / 1.0 / 1.1  (99 / 110 / 121 V)
 .param VSEC=315.5        ; HT secondary, Vrms at nominal mains (calibrated: B+ = 400 V at idle)
@@ -31,6 +36,10 @@
 .param CIN=220u ESR1=0.5     ; reservoir cap + ESR
 .param RFIL=47            ; CRC series resistor (drop ~7 V idle)
 .param COUT=470u ESR2=0.3   ; B+ cap + ESR
+.param VBIASW=45       ; bias winding, Vrms at nominal mains (assumed)
+.param RBWIN=50        ; bias winding source resistance (ohm)
+.param CB1=47u RBF=1k CB2=100u   ; bias CRC filter
+.param RBLOAD=25.5k    ; standalone test load = four 102k bias dividers in parallel
 * ---- shared B+ supply ----
 * ---- transformer HT winding (Thevenin: ideal sine + source resistance)
 VHT ht1 hts SIN(0 {VSEC*MAINS*sqrt(2)} 60)
@@ -48,13 +57,25 @@ RE1 c1n 0 {ESR1}
 RF1 raw bp {RFIL}
 CF2 bp c2n {COUT}
 RE2 c2n 0 {ESR2}
+* ---- bias supply: half-wave negative rectifier from its own winding
+VBW bwa 0 SIN(0 {VBIASW*MAINS*sqrt(2)} 60)
+RBWS bwa bwb {RBWIN}
+DB nb1 bwb DPWR
+CBF1 nb1 0 {CB1}
+RBF1 nb1 nbus {RBF}
+CBF2 nbus 0 {CB2}
 * ---- one channel ----
-.subckt AMPCH in out bp
+.subckt AMPCH in out bp nbus
 RD1 bp b2 {RD1}
 CD1 b2 0 47u
 RD2 b2 b3 {RD2}
 CD2 b3 0 47u
-VBIAS bias 0 {VB}
+* per-tube bias divider from the bias bus nbus: RBTOP - pot RPOT (wiper = grid bias) - RBBOT
+RBTA nbus tA {RBTOP}
+RPUA tA bias {max(RPOT*(1-WA),1)}
+RPLA bias uA {max(RPOT*WA,1)}
+RBBA uA 0 {RBBOT}
+CWA bias 0 {CWIPER}
 * ---- V1 : 6N2 (one triode), DC-coupled to LTP
 Rin in ing 1k
 Rgl ing 0 470k
@@ -83,7 +104,12 @@ CCB lb gb 0.22u
 RGA ga bias 100k
 RGB gb biasb 100k
 * per-tube bias trim for V4 (V4 bias = VB + DVB)
-VBIASB biasb bias {DVB}
+* per-tube bias divider from the bias bus nbus: RBTOP - pot RPOT (wiper = grid bias) - RBBOT
+RBTB nbus tB {RBTOP}
+RPUB tB biasb {max(RPOT*(1-WB),1)}
+RPLB biasb uB {max(RPOT*WB,1)}
+RBBB uB 0 {RBBOT}
+CWB biasb 0 {CWIPER}
 * ---- output: 6P3S-E pair, UL, fixed bias
 RSA ga gsa 1.5k
 RSB gb gsb 1.5k
@@ -107,6 +133,10 @@ L4 ulb n4 {LH*(1-TU)*(1-TU)}
 R4W n4 pb 35
 L5 0 n5 {16*LH/RAA}
 R5W n5 out 0.25
+* winding capacitance (lumped): plate-to-plate, and primary-to-secondary split asymmetrically
+CPPW pa pb {CPP}
+CPSA pa out {CPS/2}
+CPSB pb 0 {CPS/2}
 K12 L1 L2 {KC}
 K13 L1 L3 {KC}
 K14 L1 L4 {KC}
@@ -125,10 +155,10 @@ RLOAD out 0 {RL}
 XSPK out spk ELT10_EST
 RSPK spk 0 {1e9*(1-SPK)+1u}
 .ends AMPCH
-XL inL outL bp AMPCH
-XR inR outR bp AMPCH
+XL inL outL bp nbus AMPCH
+XR inR outR bp nbus AMPCH
 * ---- start near steady state (released after the operating point) ----
-.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358
+.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.5 V(xl:bias)=-42 V(xl:biasb)=-42 V(xr:bias)=-42 V(xr:biasb)=-42
 * ---- stimulus & analysis (both channels driven, in phase) ----
 .param AMP=0.5
 VINL inL 0 SIN(0 {AMP} 1k)

@@ -323,7 +323,7 @@ def to_ngspice(txt):
     return txt
 
 
-def build_stereo():
+def build_stereo(real_bias=True, write=True):
     """Generate simulations/ltspice/amp_stereo_psu_v1.cir from the two sources:
     amp_channel_v1.cir (channel circuit, used twice as subckt AMPCH) and
     psu_v1.cir (transformer, bridge, CRC). Never edit the generated file."""
@@ -336,6 +336,13 @@ def build_stereo():
              if l.strip() and not re.match(r"(?i)^(\.param|VBP\b|RBP\b|\* ---- power supply)", l)]
     params = [re.sub(r"^\.param VB=(\S+)", r".param VBN=\1", p) for p in params]
     params = [p for p in params if not p.startswith((".param AMP=", ".param VBPLUS="))]  # B+ comes from psu_v1
+    # real bias: each output tube gets its own divider (RBTOP + pot RPOT + RBBOT) from the bias bus
+    divider = ("* per-tube bias divider from the bias bus nbus: RBTOP - pot RPOT (wiper = grid bias) - RBBOT\n"
+               "RBT{t} nbus t{t} {{RBTOP}}\nRPU{t} t{t} {n} {{max(RPOT*(1-{w}),1)}}\nRPL{t} {n} u{t} {{max(RPOT*{w},1)}}\n"
+               "RBB{t} u{t} 0 {{RBBOT}}\nCW{t} {n} 0 {{CWIPER}}")
+    if real_bias:
+        lines = [divider.format(t="A", n="bias", w="WA") if l.startswith("VBIAS ") else
+                 divider.format(t="B", n="biasb", w="WB") if l.startswith("VBIASB ") else l for l in lines]
     psu = open(PSU, encoding="utf-8").read().replace("\r\n", "\n")
     pparams = [p for p in re.findall(r"(?m)^\.param .*$", psu) if "ILOAD" not in p]
     pcirc = psu.split("* ---- transformer", 1)[1].split("* ---- load", 1)[0]
@@ -344,26 +351,30 @@ def build_stereo():
 *  Sources: amp_channel_v1.cir (channel, used twice) + psu_v1.cir (B+ supply).
 *  Both channels share one transformer / bridge / CRC (B+ node "bp");
 *  each channel keeps its own RD1-CD1-RD2-CD2 decoupling (dual-mono style).
-*  Fixed bias tracks the mains (VB = VBN * MAINS), as a bias winding on the
-*  same transformer would.  .ic starts the supply near steady state.
+*  Fixed bias comes from the bias winding in psu_v1.cir (bus "nbus") through
+*  one divider + pot per output tube (wiper settings WA / WB per tube).
+*  .ic starts the supplies near steady state.
 * =====================================================================
 {chr(10).join(includes)}
 .options plotwinsize=0 numdgt=7
 * ---- channel parameters (from amp_channel_v1.cir) ----
 {chr(10).join(params)}
-.param VB={{VBN*MAINS}}
+* ---- per-tube bias dividers (range about -35 ... -50 V on a -58.5 V bus) ----
+.param RBTOP=15k RPOT=25k RBBOT=62k CWIPER=10u
+.param WA=0.462 WB=0.462   ; pot wiper position 0..1 (1 = most negative); 0.462 = 34.4 mA per tube (nominal tubes)
+.param VB={{VBN*MAINS}}   ; used only by the ideal-bias variant (build_stereo(real_bias=False))
 * ---- supply parameters (from psu_v1.cir) ----
 {chr(10).join(pparams)}
 * ---- shared B+ supply ----
 * ---- transformer{pcirc.rstrip()}
 * ---- one channel ----
-.subckt AMPCH in out bp
+.subckt AMPCH in out bp nbus
 {chr(10).join(lines)}
 .ends AMPCH
-XL inL outL bp AMPCH
-XR inR outR bp AMPCH
+XL inL outL bp nbus AMPCH
+XR inR outR bp nbus AMPCH
 * ---- start near steady state (released after the operating point) ----
-.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358
+.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.5 V(xl:bias)=-42 V(xl:biasb)=-42 V(xr:bias)=-42 V(xr:biasb)=-42
 * ---- stimulus & analysis (both channels driven, in phase) ----
 .param AMP=0.5
 VINL inL 0 SIN(0 {{AMP}} 1k)
@@ -374,14 +385,15 @@ VINR inR 0 SIN(0 {{AMP}} 1k)
 .meas TRAN Bplus AVG V(bp) FROM 0.4 TO 0.42
 .end
 """
-    with open(STEREO, "w", encoding="utf-8", newline="\n") as fh:
-        fh.write(out)
+    if write:
+        with open(STEREO, "w", encoding="utf-8", newline="\n") as fh:
+            fh.write(out)
     return out
 
 
-def stereo(amp=0.0, mains=1.0, tstop=0.42, tstart=0.4, ic=True, **over):
+def stereo(amp=0.0, mains=1.0, tstop=0.42, tstart=0.4, ic=True, real_bias=True, **over):
     """ngspice text of the stereo+PSU netlist, analysis lines removed."""
-    txt = build_stereo().split("* ---- stimulus")[0]
+    txt = build_stereo(real_bias, write=real_bias).split("* ---- stimulus")[0]
     txt = re.sub(r"(?im)^\.include\s+(\S+)", lambda mm: ".include " + model_path(mm.group(1)), txt)
     if not ic:
         txt = re.sub(r"(?im)^\.ic .*$", "", txt)
@@ -1178,8 +1190,155 @@ def plot_fig18():
          "Data: docs/data/fig18_tube_spread.csv")
 
 
+# ---------------------------------------------------------------- bias supply (fig19)
+def stereo_meas(meas, tstop=0.5, t0=0.45, timeout=900, **kw):
+    net = stereo(**kw) + ".control\n" + f"tran 10u {tstop} 0 10u\n" + \
+        "".join(f"meas tran {n} avg {e} from={t0} to={tstop}\n" for n, e in meas.items()) + ".endc\n.end\n"
+    o, _ = ngspice(net, timeout=timeout)
+    return {n: float(re.search(rf"(?m)^{n}\s+=\s+(\S+)", o).group(1)) for n in meas}
+
+
+def _tone120(t, y, f=120.0):
+    y = y - np.polyval(np.polyfit(t, y, 1), t)
+    a = 2 * np.mean(y * np.cos(2 * np.pi * f * t)); b = 2 * np.mean(y * np.sin(2 * np.pi * f * t))
+    return np.hypot(a, b) / np.sqrt(2)
+
+
+def fig19():
+    """Bias supply model: start-up, mains tracking, pot range, hum."""
+    rows = []
+    fig, axs = plt.subplots(2, 2, figsize=(12.0, 8.2))
+    # (a)(b) cold start, bias supply model vs ideal bias source
+    for lab, rb, col in [("bias supply model", True, C1), ("ideal bias source", False, C2)]:
+        d = ng_wrdata(stereo(0, ic=False, real_bias=rb) + ".options method=gear\n", "tran 100u 3 0 100u",
+                      ["v(bp)", "v(xl.bias)", "v(xl.ka)"], timeout=1800)
+        axs[0, 0].plot(d[:, 0], d[:, 3] * 1e3, color=col, label=lab)
+        if rb:
+            axs[0, 1].plot(d[:, 0], d[:, 1], color=C1, label="B+")
+            axs[0, 1].plot(d[:, 0], -d[:, 2] * 5, color=C3, label="grid bias x (-5)")
+        k = int(np.argmax(d[:, 3]))
+        rows.append(("startup_peak_Ik", lab, float(d[k, 3] * 1e3), float(d[k, 0])))
+    axs[0, 0].axhline(34.4, color=INK2, lw=1, ls=":")
+    axs[0, 0].set(title="(a) Switch-on: output tube current", xlabel="Time (s)", ylabel="Ik V3 (mA)", xlim=(0, 3))
+    axs[0, 0].legend(loc="upper right", fontsize=8.5)
+    axs[0, 1].set(title="(b) Switch-on: B+ and grid bias (bias supply model)", xlabel="Time (s)",
+                  ylabel="Volts (bias shown x -5)", xlim=(0, 1))
+    axs[0, 1].legend(loc="lower right", fontsize=8.5)
+    # (c) mains tracking
+    mains = [0.9, 0.95, 1.0, 1.05, 1.1]
+    meas = {"ik": "v(xl.ka)", "pa": "v(xl.pa)", "bp": "v(bp)", "g": "v(xl.bias)", "nb": "v(nbus)"}
+
+    def mjob(j):
+        mm, rb = j
+        over = {} if rb else {"VBN": f"{-42.14/mm:.4f}"}     # ideal source held at -42.14 V for all mains
+        return mm, rb, stereo_meas(meas, tstop=1.0, t0=0.95, mains=mm, real_bias=rb, **over)
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        res = list(ex.map(mjob, [(mm, rb) for rb in (True, False) for mm in mains]))
+    for rb, col, lab in [(True, C1, "bias supply model (tracks mains)"), (False, C2, "bias held at -42.1 V")]:
+        r = [x for x in res if x[1] == rb]
+        axs[1, 0].plot([110 * x[0] for x in r], [x[2]["ik"] * x[2]["pa"] for x in r], "o-", color=col, ms=5,
+                       mec=SURF, mew=1, label=lab)
+        for mm, _, x in r:
+            rows.append(("mains", lab, mm, x["bp"], x["g"], x["nb"], x["ik"] * 1e3, x["ik"] * x["pa"]))
+    axs[1, 0].axhline(20.5, color=C4, lw=2, ls="--")
+    axs[1, 0].text(99.5, 21.0, "rating 20.5 W", color=INK2, fontsize=9)
+    axs[1, 0].set(title="(c) Mains variation: idle Pa per tube", xlabel="Mains (V rms)", ylabel="Pa (W)", ylim=(0, 26))
+    axs[1, 0].legend(loc="upper left", fontsize=8.5)
+    # (d) pot range at three mains levels vs the Monte Carlo requirement
+    rt = 15e3 + 25e3 + 62e3
+    w = np.linspace(0, 1, 51)
+    for mm, col in [(0.9, C2), (1.0, C1), (1.1, C3)]:
+        nb = [x[2]["nb"] for x in res if x[1] and abs(x[0] - mm) < 1e-6][0]
+        axs[1, 1].plot(w, nb * (62e3 + w * 25e3) / rt, color=col, label=f"mains {110*mm:.0f} V (bus {nb:.1f} V)")
+        rows.append(("pot_range", f"mains {mm}", nb, nb * 62e3 / rt, nb * 87e3 / rt))
+    axs[1, 1].axhspan(-48.3, -36.6, color=GRID, alpha=0.6, lw=0)
+    axs[1, 1].text(0.02, -48.0, "needed by the 200 Monte Carlo amps (fig 18): -36.6 ... -48.3 V",
+                   color=INK2, fontsize=8.5, va="bottom")
+    axs[1, 1].set(title="(d) Bias pot range (15k - 25k pot - 62k)", xlabel="Pot position (0 = least negative)",
+                  ylabel="Grid bias (V)", xlim=(0, 1))
+    axs[1, 1].legend(loc="upper right", fontsize=8.5)
+    fig.tight_layout()
+    # hum at 120 Hz: bias supply vs ideal bias, matched and 5 % mismatched pair
+    for rb in (True, False):
+        for kgb in ("1460", "1533"):
+            d = ng_wrdata(stereo(0, real_bias=rb, KGB=kgb), "tran 10u 0.55 0.5 10u", ["v(outl)", "v(xl.bias)", "v(nbus)"])
+            t = d[:, 0] - d[0, 0]
+            rows.append(("hum_120Hz_rms_V", "bias supply" if rb else "ideal bias", "matched" if kgb == "1460" else "V4 5 % low",
+                         _tone120(t, d[:, 1]), _tone120(t, d[:, 2]), _tone120(t, d[:, 3])))
+    write_csv("fig19_bias_supply.csv", ["item", "case", "a", "b", "c", "d", "e", "f"],
+              [tuple(r) + ("",) * (8 - len(r)) for r in rows])
+    for r in rows:
+        print("   ", r)
+    save(fig, "fig19_bias_supply.png",
+         "Bias winding 45 Vrms (assumed), half-wave, 47u - 1k - 100u, then one 15k / 25k pot / 62k divider + 10 uF per tube. "
+         "Data: docs/data/fig19_bias_supply.csv")
+
+
+# ---------------------------------------------------------------- OPT winding capacitance (fig20)
+CAP_CPP = ["1p", "100p", "300p", "1n"]
+CAP_CPS = ["1p", "300p", "1n", "3n"]
+CAP_LOADS = [("4 ohm", "", {}), ("ELT 10", "", None), ("no load", "", {"RL": "1e6"})]
+
+
+def _load_over(lov):
+    return dict(SPKR) if lov is None else dict(lov)
+
+
+def fig20(comp=None, tag=""):
+    """Winding capacitance sweep: margins at nominal OPT, worst case over the OPT grid."""
+    comp = comp or {}
+    rows = []
+    jobs = [(cpp, cps, ln, ex, lov) for cpp in CAP_CPP for cps in CAP_CPS for ln, ex, lov in CAP_LOADS]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex_:
+        res = list(ex_.map(lambda j: (j, loop_margins(j[3], CPP=j[0], CPS=j[1], **_load_over(j[4]), **comp)), jobs))
+    for (cpp, cps, ln, _, _), (fc, pm, gm) in res:
+        rows.append(("nominal_OPT", cpp, cps, ln, fc, pm, gm))
+    import itertools
+    grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
+    worst = {}
+    for cpp, cps in [("100p", "300p"), ("300p", "1n"), ("1n", "3n")]:
+        for ln, ex, lov in CAP_LOADS:
+            with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex_:
+                r = list(ex_.map(lambda g: loop_margins(ex, RAA=g[0], TU=g[1], LH=g[2], KC=g[3], CPP=cpp, CPS=cps,
+                                                        **_load_over(lov), **comp), grid))
+            pm = np.array([np.nan_to_num(x[1], nan=-90) for x in r]); gm = np.array([np.nan_to_num(x[2], nan=-30) for x in r])
+            worst[(cpp, cps, ln)] = (pm.min(), gm.min(), int(((pm < 20) | (gm < 3)).sum()))
+            rows.append(("grid_worst", cpp, cps, ln, "", pm.min(), gm.min(), worst[(cpp, cps, ln)][2]))
+    write_csv(f"fig20_opt_capacitance{tag}.csv", ["study", "CPP", "CPS", "load", "crossover_Hz", "PM_deg", "GM_dB", "n_bad"],
+              [tuple(r) + ("",) * (8 - len(r)) for r in rows])
+    # ---- figure
+    fig, axs = plt.subplots(1, 3, figsize=(14.0, 4.6))
+    for (cpp, cps), col in zip([("1p", "1p"), ("100p", "300p"), ("300p", "1n"), ("1n", "3n")], [C1, C2, C3, C4]):
+        f, db = ac_curve(CPP=cpp, CPS=cps, **comp)
+        lab = "no winding C" if cpp == "1p" else f"CPP {cpp}, CPS {cps}"
+        axs[0].semilogx(f, db, color=col, label=lab)
+    axs[0].axhline(-3, color=INK2, lw=1, ls=":")
+    axs[0].set(title="Closed-loop response, 4 ohm", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)",
+               xlim=(1e3, 5e6), ylim=(-30, 15))
+    axs[0].legend(loc="lower left", fontsize=8.5)
+    for ax, ln in zip(axs[1:], ["4 ohm", "no load"]):
+        m = np.array([[[r[6] for r in rows if r[0] == "nominal_OPT" and r[1] == cpp and r[2] == cps and r[3] == ln][0]
+                       for cps in CAP_CPS] for cpp in CAP_CPP], dtype=float)
+        im = ax.imshow(np.clip(m, -10, 30), cmap="Blues", vmin=-10, vmax=30, origin="lower", aspect="auto")
+        for i in range(len(CAP_CPP)):
+            for j in range(len(CAP_CPS)):
+                v = m[i, j]
+                ax.text(j, i, "osc." if not np.isfinite(v) or v < 0 else f"{v:.1f}", ha="center", va="center", fontsize=9,
+                        color=SURF if (np.isfinite(v) and v > 18) else INK)
+        ax.set_xticks(range(len(CAP_CPS)), ["0" if c == "1p" else c for c in CAP_CPS])
+        ax.set_yticks(range(len(CAP_CPP)), ["0" if c == "1p" else c for c in CAP_CPP])
+        ax.set(title=f"Gain margin (dB), {ln}, nominal OPT", xlabel="Primary-secondary C (CPS)", ylabel="Plate-plate C (CPP)")
+        ax.grid(False)
+    fig.tight_layout()
+    save(fig, f"fig20_opt_capacitance{tag}.png",
+         "Lumped OPT winding capacitance added to the v1.4 model. Grid worst cases: docs/data/fig20_opt_capacitance.csv")
+    for k, v in worst.items():
+        print("   worst", k, f"PM {v[0]:.0f} GM {v[1]:.1f} bad {v[2]}")
+    return rows, worst
+
+
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, fig18=fig18, plot18=plot_fig18, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, fig18=fig18, plot18=plot_fig18, fig19=fig19, fig20=fig20, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)
