@@ -1,8 +1,10 @@
 item,a,b,c
-response_dev_20Hz_20kHz_dB,-0.801609,0.397824,
-v1.1_ELT10_square_PM_GM,480.94,nan,nan
-v1.3_ELT10_square_PM_GM,0.761184,75.5616,15.6756
-v1.4_ELT10_square_PM_GM,0.435851,99.4094,27.2719
+response_dev_20Hz_20kHz_dB,-0.793817,0.447775,
+v1.1_ELT10_square_PM_GM,536.534,nan,nan
+v1.3_ELT10_square_PM_GM,0.790415,73.3139,15.0882
+v1.4_ELT10_square_PM_GM,0.457444,99.6153,26.542
+v1.5_ELT10_square_PM_GM,0.0687692,93.729,39.8834
 v1.1_ELT10_grid_worst_PM_GM,nan,nan,
-v1.3_ELT10_grid_worst_PM_GM,0.773136,-1.64285,
-v1.4_ELT10_grid_worst_PM_GM,77.9246,14.1122,
+v1.3_ELT10_grid_worst_PM_GM,1.00978,-2.22618,
+v1.4_ELT10_grid_worst_PM_GM,77.3419,13.2114,
+v1.5_ELT10_grid_worst_PM_GM,75.1692,27.3902,

@@ -11,22 +11,23 @@
 .include ../../models/elt10_est.inc
 .options plotwinsize=0 numdgt=7
 * ---- channel parameters (from amp_channel_v1.cir) ----
-.param VBN=-42        ; fixed bias (sweep with .step to study bias)
+.param VBN=-40.9      ; fixed bias, trimmed for 34.4 mA/tube (sweep with .step to study bias)
 .param RKO=1 CKO=1p  ; 1R cathode sense (fixed bias). Cathode-bias test: RKO=1.1k CKO=220u VB=0
 .param RD1=1k RD2=47k
 .param RA1=330k RK2=2.7k   ; 2.7k: DC path via RFB is in parallel, Vgk ~ -0.9 V
 .param RT=15k RLA=18k RLB=18.82k
-.param RFB=2.7k CFB=1p        ; lead cap removed in v1.4 (v1.1-v1.3 used 1n)
+.param RFB=2.7k CFB=100p      ; v1.5: 100p lead cap (v1.4: none, v1.1-v1.3: 1n)
 .param RSTEP=3.3k CSTEP=470p ; V1 plate step network (v1.3+). Disable: RSTEP=1e9
-.param RZOB=10 CZOB=470n    ; output Zobel (v1.4; v1.3 was 4.7R+100n). Disable: RZOB=1e9
+.param RZOB=10 CZOB=1u      ; output Zobel (v1.5; v1.4 10R+470n, v1.3 4.7R+100n). Disable: RZOB=1e9
+.param RPZ=4.7k CPZ=2.2n    ; v1.5: plate-plate RC across the OPT primary (README 4.8). Disable: RPZ=1e9
 .param RL=4                 ; resistive load (ohm); 1e6 = no load
 .param SPK=0                ; 1 = connect the estimated ELT 10 model (then set RL=1e6)
 .param DVB=0               ; V4 bias offset (V) relative to VB, for per-tube trim
-.param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
+.param KGA=1640 KGB=1640   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1722 = 5 % less current)
 .param LH=10 TU=0.43 KC=0.9995 RAA=6k   ; half-primary L (H), UL tap, coupling, primary Z (plate-plate)
 .param CPP=1p CPS=1p   ; OPT winding capacitance: plate-plate (CPP) and primary-secondary (CPS); 1p = off
-* ---- per-tube bias dividers (range about -35 ... -50 V on a -58.5 V bus) ----
-.param RBTOP=15k RPOT=25k RBBOT=62k CWIPER=10u
+* ---- per-tube bias dividers (range about -34 ... -49 V on a -58.5 V bus) ----
+.param RBTOP=15k RPOT=25k RBBOT=56k CWIPER=10u
 .param WA=0.462 WB=0.462   ; pot wiper position 0..1 (1 = most negative); 0.462 = 34.4 mA per tube (nominal tubes)
 .param VB={VBN*MAINS}   ; used only by the ideal-bias variant (build_stereo(real_bias=False))
 * ---- supply parameters (from psu_v1.cir) ----
@@ -39,7 +40,7 @@
 .param VBIASW=45       ; bias winding, Vrms at nominal mains (assumed)
 .param RBWIN=50        ; bias winding source resistance (ohm)
 .param CB1=47u RBF=1k CB2=100u   ; bias CRC filter
-.param RBLOAD=25.5k    ; standalone test load = four 102k bias dividers in parallel
+.param RBLOAD=24k      ; standalone test load = four 96k bias dividers in parallel
 * ---- shared B+ supply ----
 * ---- transformer HT winding (Thevenin: ideal sine + source resistance)
 VHT ht1 hts SIN(0 {VSEC*MAINS*sqrt(2)} 60)
@@ -137,6 +138,9 @@ R5W n5 out 0.25
 CPPW pa pb {CPP}
 CPSA pa out {CPS/2}
 CPSB pb 0 {CPS/2}
+* primary plate-plate RC network (off when RPZ=1e9)
+RPZ pa npz {RPZ}
+CPZ npz pb {CPZ}
 K12 L1 L2 {KC}
 K13 L1 L3 {KC}
 K14 L1 L4 {KC}
@@ -158,7 +162,7 @@ RSPK spk 0 {1e9*(1-SPK)+1u}
 XL inL outL bp nbus AMPCH
 XR inR outR bp nbus AMPCH
 * ---- start near steady state (released after the operating point) ----
-.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.5 V(xl:bias)=-42 V(xl:biasb)=-42 V(xr:bias)=-42 V(xr:biasb)=-42
+.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.3 V(xl:bias)=-41 V(xl:biasb)=-41 V(xr:bias)=-41 V(xr:biasb)=-41
 * ---- stimulus & analysis (both channels driven, in phase) ----
 .param AMP=0.5
 VINL inL 0 SIN(0 {AMP} 1k)

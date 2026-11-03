@@ -229,21 +229,22 @@ def fig3():
     B = 397
     ax.plot([0, B], [B / 1500 * 1e3, 0], color=C2, lw=2, label="Class-B load line Raa/4 = 1.5k")
     ax.plot([B], [34.4], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
-    ax.annotate("Idle: 397 V, 34.4 mA, Vg -42 V (13.7 W)", (B, 34.4), (420, 110),
+    ax.annotate("Idle: 397 V, 34.4 mA, Vg -40.9 V (13.7 W)", (B, 34.4), (405, 133),
                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1), fontsize=9.5)
     ax.set_title("V3/V4  6P3S-E plate curves, Vg2 = 397 V", pad=18)
     ax.set( xlabel="Plate-cathode voltage (V)",
            ylabel="Plate current (mA)", xlim=(0, 640))
     ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.14), ncol=2)
     save(fig, "fig3_6P3S-E_plate.png",
-         "Koren 6L6GC parameters (~10 % hot vs. data sheet). Screen held at idle value here; in the UL circuit it swings with the plate.")
+         "Koren 6L6GC form, KG1/KG2 fitted to the 6P3S datasheet point (250 V / 250 V / -14 V: 72 mA). Screen held at idle value here; in the UL circuit it swings with the plate.")
 
 
 def fig4():
-    sets = [("Open loop (v1.4 forward path)", dict(RFB="1e9"), C1, "-"),
-            ("NFB 2.7k, no lead cap", dict(RFB="2.7k", CFB="1p", RZOB="1e9", RSTEP="1e9"), C2, "-"),
-            ("v1.1: NFB 2.7k || 1nF", dict(RZOB="1e9", RSTEP="1e9", CFB="1n"), C4, "--"),
-            ("v1.4: step 3.3k/470p + Zobel 10R/470n, no lead cap", dict(), C3, "-")]
+    sets = [("Open loop (v1.5 forward path)", dict(RFB="1e9"), C1, "-"),
+            ("NFB 2.7k, no lead cap", dict(RFB="2.7k", CFB="1p", RZOB="1e9", RSTEP="1e9", RPZ="1e9"), C2, "-"),
+            ("v1.1: NFB 2.7k || 1nF", dict(V11), C4, "--"),
+            ("v1.4: step 3.3k/470p + Zobel 10R/470n", dict(V14), INK2, ":"),
+            ("v1.5: + plate-plate 4.7k/2.2n, Zobel 10R/1u, CFB 100p", dict(), C3, "-")]
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     for lab, ov, col, ls in sets:
         d = ng_wrdata(channel(**ov) + "VIN in 0 AC 1\n", "ac dec 100 1 5e6", ["vdb(out)"])
@@ -259,7 +260,7 @@ def fig4():
 
 def fig5():
     amps = [0.03, 0.06, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.58, 0.61, 0.64, 0.67]
-    modes = [("Fixed bias, Vg = -42 V", dict(), C1),
+    modes = [("Fixed bias, Vg = -40.9 V", dict(), C1),
              ("Cathode bias, Rk = 1.1k || 220 uF", dict(VB="0", RKO="1.1k", CKO="220u"), C2)]
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
@@ -359,8 +360,8 @@ def build_stereo(real_bias=True, write=True):
 .options plotwinsize=0 numdgt=7
 * ---- channel parameters (from amp_channel_v1.cir) ----
 {chr(10).join(params)}
-* ---- per-tube bias dividers (range about -35 ... -50 V on a -58.5 V bus) ----
-.param RBTOP=15k RPOT=25k RBBOT=62k CWIPER=10u
+* ---- per-tube bias dividers (range about -34 ... -49 V on a -58.5 V bus) ----
+.param RBTOP=15k RPOT=25k RBBOT=56k CWIPER=10u
 .param WA=0.462 WB=0.462   ; pot wiper position 0..1 (1 = most negative); 0.462 = 34.4 mA per tube (nominal tubes)
 .param VB={{VBN*MAINS}}   ; used only by the ideal-bias variant (build_stereo(real_bias=False))
 * ---- supply parameters (from psu_v1.cir) ----
@@ -374,7 +375,7 @@ def build_stereo(real_bias=True, write=True):
 XL inL outL bp nbus AMPCH
 XR inR outR bp nbus AMPCH
 * ---- start near steady state (released after the operating point) ----
-.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.5 V(xl:bias)=-42 V(xl:biasb)=-42 V(xr:bias)=-42 V(xr:biasb)=-42
+.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.3 V(xl:bias)=-41 V(xl:biasb)=-41 V(xr:bias)=-41 V(xr:biasb)=-41
 * ---- stimulus & analysis (both channels driven, in phase) ----
 .param AMP=0.5
 VINL inL 0 SIN(0 {{AMP}} 1k)
@@ -448,7 +449,7 @@ def fig9():
     """Idle ripple: C1, B+, and hum at the speaker for a matched / mismatched pair."""
     win = "tran 10u 0.55 0.5 10u"
     d = ng_wrdata(stereo(0), win, ["v(raw)", "v(bp)", "v(outl)"])
-    dm = ng_wrdata(stereo(0, KGB="1533"), win, ["v(outl)"])
+    dm = ng_wrdata(stereo(0, KGB="1722"), win, ["v(outl)"])
     t = (d[:, 0] - d[0, 0]) * 1e3
 
     def ac(y):                       # remove mean and slow settling drift
@@ -475,9 +476,9 @@ def fig9():
     axs[0].set_title("Ripple and hum at idle, stereo, nominal mains")
     axs[2].set(xlabel="Time (ms)", xlim=(0, 50))
     fig.align_ylabels()
-    snr = 20 * np.log10(np.sqrt(27.0 * 4) / tone(hx))
+    snr = 20 * np.log10(np.sqrt(25.0 * 4) / tone(hx))
     save(fig, "fig9_psu_ripple.png",
-         f"Supply-ripple hum only: {snr:.0f} dB below 27 W even with a 5 % mismatch. Heater / wiring hum is not modelled.")
+         f"Supply-ripple hum only: {snr:.0f} dB below 25 W even with a 5 % mismatch. Heater / wiring hum is not modelled.")
 
 
 def fig10():
@@ -500,7 +501,7 @@ def fig10():
     a2.set(xlabel="Output power per channel (W)", ylabel="Mean B+ (V)", xlim=(0.1, 40))
     fig.align_ylabels()
     save(fig, "fig10_psu_thd_sag.png",
-         "Bias held at -42 V (mains nominal). Sag lowers clipping power; below clipping the curves match.")
+         "Bias from the bias-supply model (pots WA = WB = 0.462). Sag lowers clipping power; below clipping the curves match.")
 
 # ---------------------------------------------------------------- sensitivity (B+, OPT)
 DATA = os.path.join(ROOT, "docs", "data")
@@ -544,7 +545,7 @@ def read_csv(name):
         return list(csv.DictReader(fh))
 
 
-NO_COMP = dict(RZOB="1e9", RSTEP="1e9", CFB="1n")   # = v1.1 (no HF compensation), for comparison
+NO_COMP = dict(RZOB="1e9", RSTEP="1e9", CFB="1n", RPZ="1e9")   # = v1.1 (no HF compensation), for comparison
 
 
 def ac_curve(extra="", **over):
@@ -578,8 +579,8 @@ def _bottom_legend(fig, handles, labels, ncol):
 def fig11():
     """B+ sensitivity, single channel, ideal supply; fixed vs tracking bias."""
     bps = [360, 370, 380, 390, 400, 410, 420, 430, 440]
-    modes = [("Bias fixed at -42 V", lambda b: -42.0),
-             ("Bias scales with B+ (-42 V x B+/400)", lambda b: -42.0 * b / 400)]
+    modes = [("Bias fixed at -40.9 V", lambda b: -40.9),
+             ("Bias scales with B+ (-40.9 V x B+/400)", lambda b: -40.9 * b / 400)]
     rows = []
     for lab, vbf in modes:
         def one(b):
@@ -597,7 +598,7 @@ def plot_fig11():
     rows = read_csv("fig11_bplus_sweep.csv")
     fig, axs = plt.subplots(1, 3, figsize=(12.6, 4.4))
     hs = []
-    for lab, col in [("Bias fixed at -42 V", C1), ("Bias scales with B+ (-42 V x B+/400)", C2)]:
+    for lab, col in [("Bias fixed at -40.9 V", C1), ("Bias scales with B+ (-40.9 V x B+/400)", C2)]:
         r = np.array([[float(x[k]) for k in ("Bplus_V", "Pa_W", "P_1pct_W", "THD_10W_pct")]
                       for x in rows if x["bias_mode"] == lab])
         for ax, k in zip(axs, (1, 2, 3)):
@@ -608,7 +609,7 @@ def plot_fig11():
     axs[0].set(title="Idle plate dissipation", xlabel="B+ (V)", ylabel="Pa per tube (W)", ylim=(0, 28))
     axs[1].set(title="Max power at 1 % THD", xlabel="B+ (V)", ylabel="Output power (W)", ylim=(0, 40))
     axs[2].set(title="THD at 10 W", xlabel="B+ (V)", ylabel="THD (%)", ylim=(0, 0.4))
-    _bottom_legend(fig, hs, ["Bias fixed at -42 V", "Bias scales with B+ (-42 V x B+/400)"], 2)
+    _bottom_legend(fig, hs, ["Bias fixed at -40.9 V", "Bias scales with B+ (-40.9 V x B+/400)"], 2)
     save(fig, "fig11_bplus_sensitivity.png",
          "Single channel, ideal B+ source, 6 k / 43 % UL OPT, 4 ohm. Data: docs/data/fig11_bplus_sweep.csv")
 
@@ -648,7 +649,7 @@ def plot_fig12():
     axs[2].set(title="Damping factor at 1 kHz", xlabel="OPT primary (k ohm, p-p)", ylabel="4 ohm / Zout", ylim=(0, None))
     _bottom_legend(fig, hs, labs, 4)
     save(fig, "fig12_opt_raa_ul.png",
-         "v1.4 circuit, B+ 400 V ideal, bias -42 V. Data: docs/data/fig12_opt_raa_ul.csv")
+         "v1.5 circuit, B+ 400 V ideal, bias -40.9 V. Data: docs/data/fig12_opt_raa_ul.csv")
 
 
 def fig13():
@@ -662,7 +663,7 @@ def fig13():
         axs[0].semilogx(f, db, color=col, label=lab)
         axs[1].semilogx(f, db, color=col, label=lab)
         m = ac_metrics(LH=lh)
-        rows.append(("Lp_H", 4 * lh, "v1.4", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("Lp_H", 4 * lh, "v1.5", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     f, db = ac_curve(LH=5, **NO_COMP)
     axs[1].semilogx(f, db, color=C2, ls="--", lw=1.6, label="Lp = 20 H, v1.1 (no HF compensation)")
     m = ac_metrics(LH=5, **NO_COMP)
@@ -671,7 +672,7 @@ def fig13():
         f, db = ac_curve(KC=kc)
         axs[2].semilogx(f, db, color=col, label=f"k = {kc}  (leakage ~{40*(1-kc**2)*1e3:.0f} mH)" + ("  (v1)" if kc == 0.9995 else ""))
         m = ac_metrics(KC=kc)
-        rows.append(("k", kc, "v1.4", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
+        rows.append(("k", kc, "v1.5", m["flo"], m["fhi"], m["pk_hi"], m["f_pk"]))
     axs[0].set(title="Primary inductance: low end", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)", xlim=(0.5, 2e3), ylim=(-15, 4))
     axs[1].set(title="Primary inductance: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
     axs[2].set(title="Coupling / leakage: high end", xlabel="Frequency (Hz)", xlim=(1e3, 5e6), ylim=(-30, 15))
@@ -682,10 +683,12 @@ def fig13():
     fig.tight_layout()
     write_csv("fig13_opt_lp_kc.csv", ["param", "value", "fix", "f_minus3dB_low_Hz", "f_minus3dB_high_Hz", "hf_peak_dB", "hf_peak_Hz"], rows)
     save(fig, "fig13_opt_lp_kc.png",
-         "v1.4 (step 3.3k+470p, Zobel 10R+470n, no lead cap); dashed = v1.1. Winding capacitance not modelled. Data: docs/data/fig13_opt_lp_kc.csv")
+         "v1.5 (step 3.3k+470p, Zobel 10R+1u, CFB 100p, plate-plate 4.7k+2.2n); dashed = v1.1. Winding capacitance off (see fig 20). Data: docs/data/fig13_opt_lp_kc.csv")
 # ---------------------------------------------------------------- square wave & loop gain
-V11 = dict(RZOB="1e9", RSTEP="1e9", CFB="1n")   # v1.1: RFB 2.7k || 1n, no step network, no Zobel
-V13 = dict(RZOB="4.7", CZOB="100n", CFB="1n")    # v1.3: step network + Zobel 4.7R/100n + 1n lead cap
+V11 = dict(RZOB="1e9", RSTEP="1e9", CFB="1n", RPZ="1e9")   # v1.1: RFB 2.7k || 1n, no step network, no Zobel
+V13 = dict(RZOB="4.7", CZOB="100n", CFB="1n", RPZ="1e9")    # v1.3: step network + Zobel 4.7R/100n + 1n lead cap
+V14 = dict(CZOB="470n", CFB="1p", RPZ="1e9")                # v1.4: Zobel 10R/470n, no lead cap, no plate-plate RC
+V15C = dict(CSTEP="1n", CFB="220p")                         # v1.5-C: v1.5 tuned for pure capacitive loads
 
 
 def square(freq, amp=0.16, extra="", cycles=None, **over):
@@ -695,9 +698,10 @@ def square(freq, amp=0.16, extra="", cycles=None, **over):
     tstop = n * T
     step = min(T / 4000, 50e-9) if freq >= 1e3 else T / 2000   # T/4000 fails in ngspice at 40 Hz
     # two unipolar pulses in series: starts at 0 V, so the DC operating point is the idle one
-    w = T / 2 - 20e-9
-    src = (f"VIN in in2 PULSE(0 {amp} 0 20n 20n {w:.6g} {T:.6g})\n"
-           f"VIN2 in2 0 PULSE(0 {-amp} {T/2:.6g} 20n 20n {w:.6g} {T:.6g})\n")
+    tr = 20e-9 if freq >= 1e3 else 1e-6        # 1 us edges below 1 kHz (20 ns stalls ngspice at 40 Hz)
+    w = T / 2 - tr
+    src = (f"VIN in in2 PULSE(0 {amp} 0 {tr:.3g} {tr:.3g} {w:.6g} {T:.6g})\n"
+           f"VIN2 in2 0 PULSE(0 {-amp} {T/2:.6g} {tr:.3g} {tr:.3g} {w:.6g} {T:.6g})\n")
     for opts in (".options method=gear\n", "", ".options method=gear reltol=5e-3 itl4=200\n"):
         d = ng_wrdata(channel(**over) + extra + src + opts,
                       f"tran {step:.3g} {tstop:.6g} {tstop-2*T:.6g} {step:.3g}", ["v(out)"],
@@ -776,9 +780,9 @@ def loop_margins(extra="", **over):
 
 
 def fig14():
-    """Square-wave response: load / stability table, v1.1 vs v1.4, plus 1 kHz and 40 Hz."""
+    """Square-wave response: load / stability table, v1.1 / v1.3 / v1.4 / v1.5, plus 1 kHz and 40 Hz."""
     rows = []
-    for ver, vov in [("v1.1", V11), ("v1.3", V13), ("v1.4", {})]:
+    for ver, vov in [("v1.1", V11), ("v1.3", V13), ("v1.4", V14), ("v1.5", {})]:
         for name, ex, ov in LOADS:
             fc, pm, gm = loop_margins(ex, **ov, **vov)
             sq = square(1e4, extra=ex, **ov, **vov)
@@ -789,18 +793,18 @@ def fig14():
     fig, axs = plt.subplots(2, 2, figsize=(12.0, 8.6))
     a = axs[0, 0]
     for lab, ov, col, lw in [("v1.1, no load (oscillates)", dict(RL="1e6", **V11), C2, 1.0),
-                             ("v1.4, no load", dict(RL="1e6"), C3, 1.8), ("v1.4, 4 ohm", {}, C1, 1.8)]:
+                             ("v1.5, no load", dict(RL="1e6"), C3, 1.8), ("v1.5, 4 ohm", {}, C1, 1.8)]:
         sq = square(1e4, **ov)
         if sq:
             a.plot(sq[0] * 1e6, sq[1], color=col, lw=lw, label=lab)
-    a.set(title="10 kHz square: v1.1 vs v1.4", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
+    a.set(title="10 kHz square: v1.1 vs v1.5", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
     a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=3, fontsize=8.5)
     a = axs[0, 1]
     for (name, ex, ov), col in zip([LOADS[0], LOADS[2], LOADS[3], LOADS[5]], [C1, C2, C3, C4]):
         t, v = square(1e4, extra=ex, **ov)
-        o = [r[5] for r in rows if r[0] == "v1.4" and r[1] == name][0]
+        o = [r[5] for r in rows if r[0] == "v1.5" and r[1] == name][0]
         a.plot(t * 1e6, v, color=col, lw=1.6, label=f"{name}: overshoot {o:.0f} %")
-    a.set(title="10 kHz square, v1.4, reactive loads", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200))
+    a.set(title="10 kHz square, v1.5, reactive loads", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200))
     a.legend(loc="upper center", bbox_to_anchor=(0.5, -0.2), ncol=2, fontsize=8.5)
     for a, fq in [(axs[1, 0], 1e3), (axs[1, 1], 40.0)]:
         sq = square(fq)
@@ -811,7 +815,7 @@ def fig14():
         _, r, ti = square_metrics(t, v, fq)
         lab = f"rise {r:.1f} us" if fq >= 1e3 else f"tilt {ti:.0f} % over 1/8 period"
         a.plot(t * 1e3, v, color=C1, lw=1.6)
-        a.set(title=f"{fq/1e3:g} kHz square, v1.4, 4 ohm ({lab})" if fq >= 1e3 else f"{fq:g} Hz square, v1.4, 4 ohm ({lab})", xlabel="Time (ms)", ylabel="Speaker (V)", xlim=(0, 2e3 / fq))
+        a.set(title=f"{fq/1e3:g} kHz square, v1.5, 4 ohm ({lab})" if fq >= 1e3 else f"{fq:g} Hz square, v1.5, 4 ohm ({lab})", xlabel="Time (ms)", ylabel="Speaker (V)", xlim=(0, 2e3 / fq))
         rows2 = (f"{fq:g}Hz", r, ti)
         print(f"    {fq:g} Hz: rise {r:.1f} us, tilt {ti:.1f} %")
     fig.tight_layout()
@@ -820,10 +824,10 @@ def fig14():
 
 
 def fig15():
-    """Loop gain and phase margin: v1.1 / v1.3 / v1.4, nominal OPT and worst grid cases."""
+    """Loop gain and phase margin: v1.1 / v1.3 / v1.4 / v1.5, nominal OPT and worst grid cases."""
     rows = []
     fig, (a1, a2) = plt.subplots(2, 1, figsize=(7.6, 6.6), sharex=True, gridspec_kw=dict(height_ratios=[1.2, 1]))
-    for lab, ov, col in [("v1.1", V11, C2), ("v1.3", V13, C4), ("v1.4", {}, C1)]:
+    for lab, ov, col in [("v1.1", V11, C2), ("v1.3", V13, C4), ("v1.4", V14, C3), ("v1.5", {}, C1)]:
         f, mag, ph = loop_gain(**ov)
         fc, pm, gm = margins(f, mag, ph)
         rows.append(("nominal", lab, fc, pm, gm))
@@ -837,7 +841,7 @@ def fig15():
     a2.set(xlabel="Frequency (Hz)", ylabel="Phase of T (deg)", xlim=(1, 1e7), ylim=(-200, 200))
     import itertools
     grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
-    for lab, ov in [("v1.1", V11), ("v1.3", V13), ("v1.4", {})]:
+    for lab, ov in [("v1.1", V11), ("v1.3", V13), ("v1.4", V14), ("v1.5", {})]:
         def one(g):
             raa, tu, lh, kc = g
             return margins(*loop_gain(RAA=raa, TU=tu, LH=lh, KC=kc, **ov)) + (g,)
@@ -915,7 +919,7 @@ def fig16():
 
 
 def fig17():
-    """v1.4 driving the estimated ELT 10 vs a 4 ohm resistor."""
+    """v1.5 driving the estimated ELT 10 vs a 4 ohm resistor."""
     fig, axs = plt.subplots(1, 3, figsize=(13.6, 4.4))
     # (a) frequency response re 1 kHz into 4 ohm
     rows = []
@@ -931,8 +935,8 @@ def fig17():
             rows.append(("response_dev_20Hz_20kHz_dB", dev[band].min(), dev[band].max()))
     axs[0].set(title="Frequency response (re 1 kHz, 4 ohm)", xlabel="Frequency (Hz)", ylabel="dB", xlim=(10, 40e3), ylim=(-4, 3))
     axs[0].legend(loc="lower center", fontsize=9)
-    # (b) 10 kHz square into the ELT 10, v1.1 / v1.3 / v1.4
-    for lab, ov, col in [("v1.1", dict(**SPKR, **V11), C2), ("v1.3", dict(**SPKR, **V13), C4), ("v1.4", SPKR, C1)]:
+    # (b) 10 kHz square into the ELT 10, v1.1 / v1.3 / v1.4 / v1.5
+    for lab, ov, col in [("v1.1", dict(**SPKR, **V11), C2), ("v1.3", dict(**SPKR, **V13), C4), ("v1.4", dict(**SPKR, **V14), C3), ("v1.5", SPKR, C1)]:
         sq = square(1e4, **ov)
         o, r, _ = square_metrics(*sq, 1e4) if sq else (float("nan"), 0, 0)
         fc, pm, gm = loop_margins(**ov)
@@ -941,7 +945,7 @@ def fig17():
             continue
         t, v = sq
         rows.append((f"{lab}_ELT10_square_PM_GM", o, pm, gm))
-        axs[1].plot(t * 1e6, v, color=col, lw=1.6 if lab == "v1.4" else 1.0,
+        axs[1].plot(t * 1e6, v, color=col, lw=1.6 if lab == "v1.5" else 1.0,
                     label=f"{lab}: overshoot {o:.0f} %" + (f", PM {pm:.0f} deg, GM {gm:.1f} dB" if np.isfinite(pm) else " (oscillates)"))
     axs[1].set(title="10 kHz square into ELT 10 model", xlabel="Time (us)", ylabel="Speaker (V)", xlim=(0, 200), ylim=(-12, 12))
     axs[1].legend(loc="upper center", bbox_to_anchor=(0.5, -0.18), fontsize=8.5)
@@ -962,7 +966,7 @@ def fig17():
     # worst-case margins over the OPT grid with the speaker load
     import itertools
     grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
-    for lab, ov in [("v1.1", dict(**SPKR, **V11)), ("v1.3", dict(**SPKR, **V13)), ("v1.4", SPKR)]:
+    for lab, ov in [("v1.1", dict(**SPKR, **V11)), ("v1.3", dict(**SPKR, **V13)), ("v1.4", dict(**SPKR, **V14)), ("v1.5", SPKR)]:
         with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
             res = list(ex.map(lambda g: loop_margins(RAA=g[0], TU=g[1], LH=g[2], KC=g[3], **ov), grid))
         rows.append((f"{lab}_ELT10_grid_worst_PM_GM", float(np.nanmin([r[1] for r in res])), float(np.nanmin([r[2] for r in res]))))
@@ -970,14 +974,14 @@ def fig17():
     for r in rows:
         print("   ", r)
     save(fig, "fig17_elt10_load.png",
-         "v1.4 unless noted. Output voltage at 1 % THD. OPT core saturation at low frequency is not modelled.")
+         "v1.5 unless noted. Output voltage at 1 % THD. OPT core saturation at low frequency is not modelled.")
 
 # ---------------------------------------------------------------- tube-to-tube spread
 NOM = {"X1": dict(KG1=1414, MU=97.5),      # 6N2  (V1)
        "X3": dict(KG1=1202, MU=35),        # 6N1  (LTP, driven half)
        "X4": dict(KG1=1202, MU=35),        # 6N1  (LTP, grounded-grid half)
-       "X5": dict(KG1=1460, MU=8.7),       # 6P3S-E (V3)
-       "X6": dict(KG1=1460, MU=8.7)}       # 6P3S-E (V4)
+       "X5": dict(KG1=1640, MU=8.7),       # 6P3S-E (V3)
+       "X6": dict(KG1=1640, MU=8.7)}       # 6P3S-E (V4)
 IK_TARGET = 34.4e-3                         # per-tube idle current the bias is trimmed to
 
 
@@ -1072,7 +1076,7 @@ def spread_case(tubes, trim):
     return dict(ia=op["ka"] * 1e3, ib=op["kb"] * 1e3, pa=op["ka"] * op["pa"], pb=op["kb"] * op["pb"],
                 dI=(op["ka"] - op["kb"]) * 1e3, thd=thd, h2=h2, gain=g, bal=bal,
                 v1gk=-op["v1k"], ltp_vak=op["la"] - op["lk"], ltp_ia=(op["b2"] - op["la"]) / param("RLA") * 1e3,
-                vb=float(over.get("VB", -42)), dvb=float(over.get("DVB", 0)))
+                vb=float(over.get("VB", -40.9)), dvb=float(over.get("DVB", 0)))
 
 
 def fig18():
@@ -1083,22 +1087,22 @@ def fig18():
     mis = [0.8, 0.87, 0.93, 1.0, 1.07, 1.15, 1.25]
     def mis_case(k_tr):
         k, tr = k_tr
-        return k, tr, spread_case({"X6": dict(KG1=1460 * k)}, tr)
+        return k, tr, spread_case({"X6": dict(KG1=1640 * k)}, tr)
     res_mis = list(pool.map(mis_case, [(k, tr) for tr in (False, True) for k in mis]))
     for k, tr, r in res_mis:
-        rows.append(("pair_mismatch", f"V4 KG1 x{k}", "trimmed" if tr else "fixed -42 V", r))
+        rows.append(("pair_mismatch", f"V4 KG1 x{k}", "trimmed" if tr else "fixed -40.9 V", r))
     # (c,d) both output tubes shifted together
     sh = [0.8, 0.9, 1.0, 1.1, 1.25]
     def sh_case(k_tr):
         k, tr = k_tr
-        tubes = {"X5": dict(KG1=1460 * k), "X6": dict(KG1=1460 * k)}
+        tubes = {"X5": dict(KG1=1640 * k), "X6": dict(KG1=1640 * k)}
         r = spread_case(tubes, tr)
         over = dict(VB=f"{r['vb']:.5f}", DVB=f"{r['dvb']:.5f}") if tr else {}
         r["pmax"] = pmax_t(chan_t(tubes, **over))
         return k, tr, r
     res_sh = list(pool.map(sh_case, [(k, tr) for tr in (False, True) for k in sh]))
     for k, tr, r in res_sh:
-        rows.append(("common_shift", f"V3+V4 KG1 x{k}", "trimmed" if tr else "fixed -42 V", r))
+        rows.append(("common_shift", f"V3+V4 KG1 x{k}", "trimmed" if tr else "fixed -40.9 V", r))
     # (e) driver tubes (output bias trimmed, as on a finished amp)
     drv = [0.75, 0.87, 1.0, 1.15, 1.33]
     drv_sets = [("6N2 (V1) KG1", lambda k: {"X1": dict(KG1=1414 * k)}),
@@ -1122,7 +1126,7 @@ def fig18():
         return i, spread_case(tubes, False), spread_case(tubes, True)
     res_mc = list(pool.map(mc_case, list(enumerate(samples))))
     for i, ru, rt in res_mc:
-        rows.append(("monte_carlo", f"sample {i}", "fixed -42 V", ru))
+        rows.append(("monte_carlo", f"sample {i}", "fixed -40.9 V", ru))
         rows.append(("monte_carlo", f"sample {i}", "trimmed", rt))
     pool.shutdown()
     keys = ["ia", "ib", "pa", "pb", "dI", "thd", "h2", "gain", "bal", "v1gk", "ltp_vak", "ltp_ia", "vb", "dvb"]
@@ -1138,7 +1142,7 @@ def plot_fig18():
     f = lambda r, k: float(r[k])
     fig, axs = plt.subplots(2, 3, figsize=(14.4, 8.4))
     # (a) DC imbalance vs current ratio
-    for bias, col, lab in [("fixed -42 V", C2, "bias fixed at -42 V"), ("trimmed", C1, "each tube trimmed to 34.4 mA")]:
+    for bias, col, lab in [("fixed -40.9 V", C2, "bias fixed at -40.9 V"), ("trimmed", C1, "each tube trimmed to 34.4 mA")]:
         r = [x for x in rows if x["study"] == "pair_mismatch" and x["bias"] == bias]
         k = [float(x["case"].split("x")[-1]) for x in r]
         axs[0, 0].plot(k, [abs(f(x, "dI")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
@@ -1148,7 +1152,7 @@ def plot_fig18():
     axs[0, 0].legend(loc="upper center", fontsize=8.5)
     axs[0, 1].set(title="(b) Pair mismatch: THD at 10 W", xlabel="V4 KG1 / nominal", ylabel="THD (%)", ylim=(0, None))
     # (c,d) common shift
-    for bias, col, lab in [("fixed -42 V", C2, "bias fixed at -42 V"), ("trimmed", C1, "trimmed to 34.4 mA")]:
+    for bias, col, lab in [("fixed -40.9 V", C2, "bias fixed at -40.9 V"), ("trimmed", C1, "trimmed to 34.4 mA")]:
         r = [x for x in rows if x["study"] == "common_shift" and x["bias"] == bias]
         k = [float(x["case"].split("x")[-1]) for x in r]
         axs[0, 2].plot(k, [max(f(x, "pa"), f(x, "pb")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
@@ -1166,7 +1170,7 @@ def plot_fig18():
                   ylabel="THD (%)", ylim=(0, None))
     axs[1, 0].legend(loc="lower right", fontsize=8.5)
     # (e,f) Monte Carlo
-    mu = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "fixed -42 V"]
+    mu = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "fixed -40.9 V"]
     mt = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "trimmed"]
     pa_u = np.array([max(f(x, "pa"), f(x, "pb")) for x in mu])
     bins = np.arange(4, 30, 1.0)
@@ -1177,16 +1181,16 @@ def plot_fig18():
     n_over = int((pa_u > 20.5).sum())
     axs[1, 1].text(20.8, axs[1, 1].get_ylim()[1] * 0.8, f"{n_over} of {len(pa_u)}\nover 20.5 W", color=INK2, fontsize=9)
     axs[1, 1].set(title="(e) Monte Carlo (200): hotter tube idle Pa",
-                  xlabel="Pa of the hotter output tube, bias fixed at -42 V (W)", ylabel="Count")
+                  xlabel="Pa of the hotter output tube, bias fixed at -40.9 V (W)", ylabel="Count")
     t_u = np.array([f(x, "thd") for x in mu]); t_t = np.array([f(x, "thd") for x in mt])
     tb = np.linspace(0, max(np.nanpercentile(t_u, 99), np.nanpercentile(t_t, 99)) * 1.05, 26)
-    axs[1, 2].hist(t_u, bins=tb, color=C2, alpha=0.6, label=f"fixed -42 V: median {np.nanmedian(t_u):.2f} %")
+    axs[1, 2].hist(t_u, bins=tb, color=C2, alpha=0.6, label=f"fixed -40.9 V: median {np.nanmedian(t_u):.2f} %")
     axs[1, 2].hist(t_t, bins=tb, color=C1, alpha=0.6, label=f"trimmed: median {np.nanmedian(t_t):.2f} %")
     axs[1, 2].set(title="(f) Monte Carlo (200): THD at 10 W", xlabel="THD (%)", ylabel="Count")
     axs[1, 2].legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
     save(fig, "fig18_tube_spread.png",
-         "v1.4, 4 ohm, ideal 400 V. KG1 sets tube current (Ia ~ 1/KG1). Monte Carlo: KG1 lognormal sigma 10 %, mu sigma 3 %, all 5 tubes independent. "
+         "v1.5, 4 ohm, ideal 400 V. KG1 sets tube current (Ia ~ 1/KG1). Monte Carlo: KG1 lognormal sigma 10 %, mu sigma 3 %, all 5 tubes independent. "
          "Data: docs/data/fig18_tube_spread.csv")
 
 
@@ -1230,11 +1234,11 @@ def fig19():
 
     def mjob(j):
         mm, rb = j
-        over = {} if rb else {"VBN": f"{-42.14/mm:.4f}"}     # ideal source held at -42.14 V for all mains
+        over = {} if rb else {"VBN": f"{-41.02/mm:.4f}"}     # ideal source held at -41.02 V for all mains
         return mm, rb, stereo_meas(meas, tstop=1.0, t0=0.95, mains=mm, real_bias=rb, **over)
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
         res = list(ex.map(mjob, [(mm, rb) for rb in (True, False) for mm in mains]))
-    for rb, col, lab in [(True, C1, "bias supply model (tracks mains)"), (False, C2, "bias held at -42.1 V")]:
+    for rb, col, lab in [(True, C1, "bias supply model (tracks mains)"), (False, C2, "bias held at -41.0 V")]:
         r = [x for x in res if x[1] == rb]
         axs[1, 0].plot([110 * x[0] for x in r], [x[2]["ik"] * x[2]["pa"] for x in r], "o-", color=col, ms=5,
                        mec=SURF, mew=1, label=lab)
@@ -1245,93 +1249,126 @@ def fig19():
     axs[1, 0].set(title="(c) Mains variation: idle Pa per tube", xlabel="Mains (V rms)", ylabel="Pa (W)", ylim=(0, 26))
     axs[1, 0].legend(loc="upper left", fontsize=8.5)
     # (d) pot range at three mains levels vs the Monte Carlo requirement
-    rt = 15e3 + 25e3 + 62e3
+    rbot = 56e3
+    rt = 15e3 + 25e3 + rbot
     w = np.linspace(0, 1, 51)
     for mm, col in [(0.9, C2), (1.0, C1), (1.1, C3)]:
         nb = [x[2]["nb"] for x in res if x[1] and abs(x[0] - mm) < 1e-6][0]
-        axs[1, 1].plot(w, nb * (62e3 + w * 25e3) / rt, color=col, label=f"mains {110*mm:.0f} V (bus {nb:.1f} V)")
-        rows.append(("pot_range", f"mains {mm}", nb, nb * 62e3 / rt, nb * 87e3 / rt))
-    axs[1, 1].axhspan(-48.3, -36.6, color=GRID, alpha=0.6, lw=0)
-    axs[1, 1].text(0.02, -48.0, "needed by the 200 Monte Carlo amps (fig 18): -36.6 ... -48.3 V",
+        axs[1, 1].plot(w, nb * (rbot + w * 25e3) / rt, color=col, label=f"mains {110*mm:.0f} V (bus {nb:.1f} V)")
+        rows.append(("pot_range", f"mains {mm}", nb, nb * rbot / rt, nb * (rbot + 25e3) / rt))
+    import csv
+    with open(os.path.join(DATA, "fig18_tube_spread.csv"), encoding="utf-8") as fh:
+        mc = [r for r in csv.DictReader(fh) if r["study"] == "monte_carlo" and r["bias"] == "trimmed"]
+    need = [float(r["vb"]) for r in mc] + [float(r["vb"]) + float(r["dvb"]) for r in mc]
+    nlo, nhi = min(need), max(need)
+    rows.append(("mc_bias_needed", "fig18 trimmed", nlo, nhi))
+    axs[1, 1].axhspan(nlo, nhi, color=GRID, alpha=0.6, lw=0)
+    axs[1, 1].text(0.02, nlo + 0.3, f"needed by the 200 Monte Carlo amps (fig 18): {nhi:.1f} ... {nlo:.1f} V",
                    color=INK2, fontsize=8.5, va="bottom")
-    axs[1, 1].set(title="(d) Bias pot range (15k - 25k pot - 62k)", xlabel="Pot position (0 = least negative)",
+    axs[1, 1].set(title="(d) Bias pot range (15k - 25k pot - 56k)", xlabel="Pot position (0 = least negative)",
                   ylabel="Grid bias (V)", xlim=(0, 1))
     axs[1, 1].legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
     # hum at 120 Hz: bias supply vs ideal bias, matched and 5 % mismatched pair
     for rb in (True, False):
-        for kgb in ("1460", "1533"):
+        for kgb in ("1640", "1722"):
             d = ng_wrdata(stereo(0, real_bias=rb, KGB=kgb), "tran 10u 0.55 0.5 10u", ["v(outl)", "v(xl.bias)", "v(nbus)"])
             t = d[:, 0] - d[0, 0]
-            rows.append(("hum_120Hz_rms_V", "bias supply" if rb else "ideal bias", "matched" if kgb == "1460" else "V4 5 % low",
+            rows.append(("hum_120Hz_rms_V", "bias supply" if rb else "ideal bias", "matched" if kgb == "1640" else "V4 5 % low",
                          _tone120(t, d[:, 1]), _tone120(t, d[:, 2]), _tone120(t, d[:, 3])))
     write_csv("fig19_bias_supply.csv", ["item", "case", "a", "b", "c", "d", "e", "f"],
               [tuple(r) + ("",) * (8 - len(r)) for r in rows])
     for r in rows:
         print("   ", r)
     save(fig, "fig19_bias_supply.png",
-         "Bias winding 45 Vrms (assumed), half-wave, 47u - 1k - 100u, then one 15k / 25k pot / 62k divider + 10 uF per tube. "
+         "Bias winding 45 Vrms (assumed), half-wave, 47u - 1k - 100u, then one 15k / 25k pot / 56k divider + 10 uF per tube. "
          "Data: docs/data/fig19_bias_supply.csv")
 
 
 # ---------------------------------------------------------------- OPT winding capacitance (fig20)
 CAP_CPP = ["1p", "100p", "300p", "1n"]
 CAP_CPS = ["1p", "300p", "1n", "3n"]
-CAP_LOADS = [("4 ohm", "", {}), ("ELT 10", "", None), ("no load", "", {"RL": "1e6"})]
+CAP_LOADS = [("4 ohm", "", {}), ("ELT 10", "", None), ("no load", "", {"RL": "1e6"}),
+             ("0.47 uF only", "CLD out 0 0.47u\n", {"RL": "1e6"}), ("2 uF only", "CLD out 0 2u\n", {"RL": "1e6"})]
+CAP_VERS = [("v1.4", V14), ("v1.5", {}), ("v1.5-C", V15C)]
+OPT_GRID = list(__import__("itertools").product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10],
+                                                [0.999, 0.9995, 0.9998]))
 
 
 def _load_over(lov):
     return dict(SPKR) if lov is None else dict(lov)
 
 
-def fig20(comp=None, tag=""):
-    """Winding capacitance sweep: margins at nominal OPT, worst case over the OPT grid."""
-    comp = comp or {}
+def fig20():
+    """OPT winding capacitance: v1.4 vs v1.5 vs v1.5-C, nominal OPT and worst case over the OPT grid."""
     rows = []
-    jobs = [(cpp, cps, ln, ex, lov) for cpp in CAP_CPP for cps in CAP_CPS for ln, ex, lov in CAP_LOADS]
+    # nominal OPT, full capacitance matrix, v1.4 and v1.5, resistive / speaker / open loads
+    jobs = [(vn, vo, cpp, cps, ln, ex, lov) for vn, vo in CAP_VERS[:2] for cpp in CAP_CPP for cps in CAP_CPS
+            for ln, ex, lov in CAP_LOADS[:3]]
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex_:
-        res = list(ex_.map(lambda j: (j, loop_margins(j[3], CPP=j[0], CPS=j[1], **_load_over(j[4]), **comp)), jobs))
-    for (cpp, cps, ln, _, _), (fc, pm, gm) in res:
-        rows.append(("nominal_OPT", cpp, cps, ln, fc, pm, gm))
-    import itertools
-    grid = list(itertools.product([4000, 5000, 6000, 6600, 8000], [0.2, 0.3, 0.43, 0.55], [5, 10], [0.999, 0.9995, 0.9998]))
+        res = list(ex_.map(lambda j: loop_margins(j[5], CPP=j[2], CPS=j[3], **_load_over(j[6]), **j[1]), jobs))
+    for j, (fc, pm, gm) in zip(jobs, res):
+        rows.append(("nominal_OPT", j[0], j[2], j[3], j[4], fc, pm, gm, ""))
+    # grid worst: typical and high winding capacitance, every load
     worst = {}
-    for cpp, cps in [("100p", "300p"), ("300p", "1n"), ("1n", "3n")]:
-        for ln, ex, lov in CAP_LOADS:
-            with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex_:
-                r = list(ex_.map(lambda g: loop_margins(ex, RAA=g[0], TU=g[1], LH=g[2], KC=g[3], CPP=cpp, CPS=cps,
-                                                        **_load_over(lov), **comp), grid))
-            pm = np.array([np.nan_to_num(x[1], nan=-90) for x in r]); gm = np.array([np.nan_to_num(x[2], nan=-30) for x in r])
-            worst[(cpp, cps, ln)] = (pm.min(), gm.min(), int(((pm < 20) | (gm < 3)).sum()))
-            rows.append(("grid_worst", cpp, cps, ln, "", pm.min(), gm.min(), worst[(cpp, cps, ln)][2]))
-    write_csv(f"fig20_opt_capacitance{tag}.csv", ["study", "CPP", "CPS", "load", "crossover_Hz", "PM_deg", "GM_dB", "n_bad"],
-              [tuple(r) + ("",) * (8 - len(r)) for r in rows])
+    for vn, vo in CAP_VERS:
+        for cpp, cps in [("300p", "1n"), ("1n", "3n")]:
+            for ln, ex, lov in CAP_LOADS:
+                with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex_:
+                    r = list(ex_.map(lambda g: loop_margins(ex, RAA=g[0], TU=g[1], LH=g[2], KC=g[3], CPP=cpp, CPS=cps,
+                                                            **_load_over(lov), **vo), OPT_GRID))
+                pm = np.array([np.nan_to_num(x[1], nan=-90) for x in r]); gm = np.array([np.nan_to_num(x[2], nan=-30) for x in r])
+                worst[(vn, cpp, cps, ln)] = (pm.min(), gm.min(), int(((pm < 20) | (gm < 3)).sum()))
+                rows.append(("grid_worst", vn, cpp, cps, ln, "", pm.min(), gm.min(), worst[(vn, cpp, cps, ln)][2]))
+    # in-band response of each version
+    for vn, vo in CAP_VERS:
+        mt = ac_metrics(**vo)
+        f, db = ac_curve(**vo)
+        rows.append(("response", vn, "", "", "4 ohm", mt["fhi"], float(np.interp(np.log10(2e4), np.log10(f), db)), mt["df"], ""))
+    write_csv("fig20_opt_capacitance.csv", ["study", "version", "CPP", "CPS", "load", "crossover_Hz_or_f3dB",
+                                            "PM_deg_or_dB20k", "GM_dB_or_DF", "n_bad_of_120"], rows)
     # ---- figure
-    fig, axs = plt.subplots(1, 3, figsize=(14.0, 4.6))
-    for (cpp, cps), col in zip([("1p", "1p"), ("100p", "300p"), ("300p", "1n"), ("1n", "3n")], [C1, C2, C3, C4]):
-        f, db = ac_curve(CPP=cpp, CPS=cps, **comp)
-        lab = "no winding C" if cpp == "1p" else f"CPP {cpp}, CPS {cps}"
-        axs[0].semilogx(f, db, color=col, label=lab)
-    axs[0].axhline(-3, color=INK2, lw=1, ls=":")
-    axs[0].set(title="Closed-loop response, 4 ohm", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)",
-               xlim=(1e3, 5e6), ylim=(-30, 15))
-    axs[0].legend(loc="lower left", fontsize=8.5)
-    for ax, ln in zip(axs[1:], ["4 ohm", "no load"]):
-        m = np.array([[[r[6] for r in rows if r[0] == "nominal_OPT" and r[1] == cpp and r[2] == cps and r[3] == ln][0]
-                       for cps in CAP_CPS] for cpp in CAP_CPP], dtype=float)
-        im = ax.imshow(np.clip(m, -10, 30), cmap="Blues", vmin=-10, vmax=30, origin="lower", aspect="auto")
+    fig, axs = plt.subplots(2, 2, figsize=(12.6, 9.0))
+    a = axs[0, 0]
+    for (vn, vo), (cpp, cps), col, ls in [(CAP_VERS[0], ("300p", "1n"), C2, "--"), (CAP_VERS[1], ("1p", "1p"), C4, ":"),
+                                          (CAP_VERS[1], ("300p", "1n"), C1, "-"), (CAP_VERS[1], ("1n", "3n"), C3, "-"),
+                                          (CAP_VERS[2], ("300p", "1n"), INK2, "-.")]:
+        f, db = ac_curve(CPP=cpp, CPS=cps, **vo)
+        lab = f"{vn}, " + ("no winding C" if cpp == "1p" else f"CPP {cpp} / CPS {cps}")
+        a.semilogx(f, db, color=col, ls=ls, label=lab)
+    a.axhline(-3, color=INK2, lw=1, ls=":")
+    a.set(title="(a) Closed-loop response, 4 ohm, nominal OPT", xlabel="Frequency (Hz)", ylabel="Gain re 1 kHz (dB)",
+          xlim=(1e3, 5e6), ylim=(-30, 15))
+    a.legend(loc="lower left", fontsize=8.5)
+    for a, vn in [(axs[0, 1], "v1.4"), (axs[1, 0], "v1.5")]:
+        m = np.array([[[r[7] for r in rows if r[0] == "nominal_OPT" and r[1] == vn and r[2] == cpp and r[3] == cps
+                        and r[4] == "4 ohm"][0] for cps in CAP_CPS] for cpp in CAP_CPP], dtype=float)
+        a.imshow(np.clip(m, -10, 40), cmap="Blues", vmin=-10, vmax=40, origin="lower", aspect="auto")
         for i in range(len(CAP_CPP)):
             for j in range(len(CAP_CPS)):
                 v = m[i, j]
-                ax.text(j, i, "osc." if not np.isfinite(v) or v < 0 else f"{v:.1f}", ha="center", va="center", fontsize=9,
-                        color=SURF if (np.isfinite(v) and v > 18) else INK)
-        ax.set_xticks(range(len(CAP_CPS)), ["0" if c == "1p" else c for c in CAP_CPS])
-        ax.set_yticks(range(len(CAP_CPP)), ["0" if c == "1p" else c for c in CAP_CPP])
-        ax.set(title=f"Gain margin (dB), {ln}, nominal OPT", xlabel="Primary-secondary C (CPS)", ylabel="Plate-plate C (CPP)")
-        ax.grid(False)
+                a.text(j, i, "osc." if not np.isfinite(v) or v < 0 else f"{v:.1f}", ha="center", va="center", fontsize=9.5,
+                       color=SURF if (np.isfinite(v) and v > 22) else INK)
+        a.set_xticks(range(len(CAP_CPS)), ["0" if c == "1p" else c for c in CAP_CPS])
+        a.set_yticks(range(len(CAP_CPP)), ["0" if c == "1p" else c for c in CAP_CPP])
+        a.set(title=f"({'b' if vn == 'v1.4' else 'c'}) Gain margin (dB), {vn}, 4 ohm, nominal OPT",
+              xlabel="Primary-secondary C (CPS)", ylabel="Plate-plate C (CPP)")
+        a.grid(False)
+    a = axs[1, 1]
+    lnames = [l[0] for l in CAP_LOADS]
+    x = np.arange(len(lnames)); w = 0.26
+    for k, ((vn, _), col) in enumerate(zip(CAP_VERS, [C2, C1, INK2])):
+        g = [worst[(vn, "300p", "1n", ln)][1] for ln in lnames]
+        a.bar(x + (k - 1) * w, np.clip(g, -12, None), w, color=col, label=vn)
+    a.axhline(0, color=INK, lw=1)
+    a.axhline(3, color=INK2, lw=1, ls=":")
+    a.set_xticks(x, lnames)
+    a.set(title="(d) Worst gain margin over 120 OPT cases, CPP 300p / CPS 1n", ylabel="GM (dB), < 0 = oscillates")
+    a.legend(loc="upper right", fontsize=8.5)
     fig.tight_layout()
-    save(fig, f"fig20_opt_capacitance{tag}.png",
-         "Lumped OPT winding capacitance added to the v1.4 model. Grid worst cases: docs/data/fig20_opt_capacitance.csv")
+    save(fig, "fig20_opt_capacitance.png",
+         "Lumped OPT winding capacitance (CPP plate-plate, CPS primary-secondary, values assumed). v1.5-C = v1.5 with "
+         "step 3.3k+1n and CFB 220p. Data: docs/data/fig20_opt_capacitance.csv")
     for k, v in worst.items():
         print("   worst", k, f"PM {v[0]:.0f} GM {v[1]:.1f} bad {v[2]}")
     return rows, worst

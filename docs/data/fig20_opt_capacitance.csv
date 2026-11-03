@@ -1,0 +1,130 @@
+study,version,CPP,CPS,load,crossover_Hz_or_f3dB,PM_deg_or_dB20k,GM_dB_or_DF,n_bad_of_120
+nominal_OPT,v1.4,1p,1p,4 ohm,39810.7,86.5592,35.7605,
+nominal_OPT,v1.4,1p,1p,ELT 10,87096.4,99.6153,26.542,
+nominal_OPT,v1.4,1p,1p,no load,102329,84.9166,25.708,
+nominal_OPT,v1.4,1p,300p,4 ohm,41686.9,80.7596,21.8167,
+nominal_OPT,v1.4,1p,300p,ELT 10,89125.1,80.6431,15.629,
+nominal_OPT,v1.4,1p,300p,no load,102329,65.1972,14.0479,
+nominal_OPT,v1.4,1p,1n,4 ohm,44668.4,64.1504,12.9865,
+nominal_OPT,v1.4,1p,1n,ELT 10,72443.6,57.7321,14.8606,
+nominal_OPT,v1.4,1p,1n,no load,81283.1,44.0268,11.4447,
+nominal_OPT,v1.4,1p,3n,4 ohm,39810.7,33.2777,6.36661,
+nominal_OPT,v1.4,1p,3n,ELT 10,46773.5,42.3577,16.0757,
+nominal_OPT,v1.4,1p,3n,no load,52480.7,33.1677,10.369,
+nominal_OPT,v1.4,100p,1p,4 ohm,41686.9,79.195,21.2773,
+nominal_OPT,v1.4,100p,1p,ELT 10,87096.4,76.3713,17.4157,
+nominal_OPT,v1.4,100p,1p,no load,100000,60.5828,14.9872,
+nominal_OPT,v1.4,100p,300p,4 ohm,43651.6,71.9739,16.4726,
+nominal_OPT,v1.4,100p,300p,ELT 10,79432.8,65.2475,15.8501,
+nominal_OPT,v1.4,100p,300p,no load,89125.1,50.6927,12.6186,
+nominal_OPT,v1.4,100p,1n,4 ohm,44668.4,55.1959,10.6916,
+nominal_OPT,v1.4,100p,1n,ELT 10,64565.4,52.4414,15.6101,
+nominal_OPT,v1.4,100p,1n,no load,72443.6,39.6931,11.0778,
+nominal_OPT,v1.4,100p,3n,4 ohm,38904.5,29.7098,5.89502,
+nominal_OPT,v1.4,100p,3n,ELT 10,43651.6,41.6663,16.5497,
+nominal_OPT,v1.4,100p,3n,no load,50118.7,32.1242,10.6677,
+nominal_OPT,v1.4,300p,1p,4 ohm,44668.4,60.1452,11.9709,
+nominal_OPT,v1.4,300p,1p,ELT 10,67608.3,55.9236,17.0178,
+nominal_OPT,v1.4,300p,1p,no load,75857.8,42.3965,12.2814,
+nominal_OPT,v1.4,300p,300p,4 ohm,44668.4,53.1861,9.97937,
+nominal_OPT,v1.4,300p,300p,ELT 10,61659.5,52.7864,17.0535,
+nominal_OPT,v1.4,300p,300p,no load,70794.6,38.9484,11.5408,
+nominal_OPT,v1.4,300p,1n,4 ohm,42658,41.5564,7.68066,
+nominal_OPT,v1.4,300p,1n,ELT 10,53703.2,46.4001,16.6555,
+nominal_OPT,v1.4,300p,1n,no load,60256,35.4965,10.7836,
+nominal_OPT,v1.4,300p,3n,4 ohm,36307.8,26.2645,5.18146,
+nominal_OPT,v1.4,300p,3n,ELT 10,39810.7,39.468,17.4707,
+nominal_OPT,v1.4,300p,3n,no load,44668.4,31.865,10.9548,
+nominal_OPT,v1.4,1n,1p,4 ohm,36307.8,28.6103,5.50561,
+nominal_OPT,v1.4,1n,1p,ELT 10,40738,40.4612,19.4885,
+nominal_OPT,v1.4,1n,1p,no load,45708.8,32.4274,11.7027,
+nominal_OPT,v1.4,1n,300p,4 ohm,35481.3,27.3671,5.08132,
+nominal_OPT,v1.4,1n,300p,ELT 10,38904.5,40.2361,19.4442,
+nominal_OPT,v1.4,1n,300p,no load,44668.4,31.6828,11.7568,
+nominal_OPT,v1.4,1n,1n,4 ohm,33884.4,24.7081,4.80576,
+nominal_OPT,v1.4,1n,1n,ELT 10,36307.8,38.6917,19.4385,
+nominal_OPT,v1.4,1n,1n,no load,40738,31.7869,11.5099,
+nominal_OPT,v1.4,1n,3n,4 ohm,29512.1,22.3618,4.65133,
+nominal_OPT,v1.4,1n,3n,ELT 10,30903,35.8792,19.7231,
+nominal_OPT,v1.4,1n,3n,no load,34673.7,30.5938,12.2212,
+nominal_OPT,v1.5,1p,1p,4 ohm,24547.1,74.8678,50.7488,
+nominal_OPT,v1.5,1p,1p,ELT 10,30199.5,93.729,39.8834,
+nominal_OPT,v1.5,1p,1p,no load,38904.5,84.8833,39.8751,
+nominal_OPT,v1.5,1p,300p,4 ohm,24547.1,73.1247,35.1377,
+nominal_OPT,v1.5,1p,300p,ELT 10,30199.5,91.1318,24.3956,
+nominal_OPT,v1.5,1p,300p,no load,38904.5,81.8976,24.3523,
+nominal_OPT,v1.5,1p,1n,4 ohm,24547.1,69.0793,34.6663,
+nominal_OPT,v1.5,1p,1n,ELT 10,29512.1,85.39,24.1485,
+nominal_OPT,v1.5,1p,1n,no load,37153.5,75.5051,24.0466,
+nominal_OPT,v1.5,1p,3n,4 ohm,23988.3,58.8557,31.0859,
+nominal_OPT,v1.5,1p,3n,ELT 10,27542.3,71.9538,24.8709,
+nominal_OPT,v1.5,1p,3n,no load,33113.1,62.3491,24.6617,
+nominal_OPT,v1.5,100p,1p,4 ohm,24547.1,72.6383,46.4891,
+nominal_OPT,v1.5,100p,1p,ELT 10,30199.5,90.4299,36.4955,
+nominal_OPT,v1.5,100p,1p,no load,38904.5,81.1343,36.0499,
+nominal_OPT,v1.5,100p,300p,4 ohm,24547.1,70.904,39.8309,
+nominal_OPT,v1.5,100p,300p,ELT 10,30199.5,87.8816,29.658,
+nominal_OPT,v1.5,100p,300p,no load,38018.9,78.3161,29.3859,
+nominal_OPT,v1.5,100p,1n,4 ohm,24547.1,66.8944,36.8168,
+nominal_OPT,v1.5,100p,1n,ELT 10,29512.1,82.3553,26.8502,
+nominal_OPT,v1.5,100p,1n,no load,36307.8,72.4858,26.6313,
+nominal_OPT,v1.5,100p,3n,4 ohm,23442.3,57.7335,26.9152,
+nominal_OPT,v1.5,100p,3n,ELT 10,26915.3,70.0697,25.9866,
+nominal_OPT,v1.5,100p,3n,no load,32359.4,60.5825,25.6526,
+nominal_OPT,v1.5,300p,1p,4 ohm,24547.1,68.1712,45.6204,
+nominal_OPT,v1.5,300p,1p,ELT 10,29512.1,84.173,37.7919,
+nominal_OPT,v1.5,300p,1p,no load,37153.5,74.2939,36.728,
+nominal_OPT,v1.5,300p,300p,4 ohm,24547.1,66.4699,42.4339,
+nominal_OPT,v1.5,300p,300p,ELT 10,28840.3,82.0556,34.037,
+nominal_OPT,v1.5,300p,300p,no load,36307.8,71.9817,33.2344,
+nominal_OPT,v1.5,300p,1n,4 ohm,23988.3,63.2497,38.3379,
+nominal_OPT,v1.5,300p,1n,ELT 10,28183.8,77.2111,30.3788,
+nominal_OPT,v1.5,300p,1n,no load,34673.7,67.2114,29.8492,
+nominal_OPT,v1.5,300p,3n,4 ohm,23442.3,54.0341,21.5155,
+nominal_OPT,v1.5,300p,3n,ELT 10,25704,66.7379,27.8668,
+nominal_OPT,v1.5,300p,3n,no load,30903,57.5282,27.2869,
+nominal_OPT,v1.5,1n,1p,4 ohm,23442.3,55.3222,23.9419,
+nominal_OPT,v1.5,1n,1p,ELT 10,25704,68.3513,39.1952,
+nominal_OPT,v1.5,1n,1p,no load,30903,59.1101,36.2417,
+nominal_OPT,v1.5,1n,300p,4 ohm,22908.7,54.8213,21.9916,
+nominal_OPT,v1.5,1n,300p,ELT 10,25704,66.7454,38.1692,
+nominal_OPT,v1.5,1n,300p,no load,30903,57.6619,35.4267,
+nominal_OPT,v1.5,1n,1n,4 ohm,22908.7,51.7163,19.1191,
+nominal_OPT,v1.5,1n,1n,ELT 10,24547.1,64.3131,35.8165,
+nominal_OPT,v1.5,1n,1n,no load,29512.1,55.4422,32.9024,
+nominal_OPT,v1.5,1n,3n,4 ohm,21379.6,46.9844,15.1128,
+nominal_OPT,v1.5,1n,3n,ELT 10,22908.7,57.7554,32.1778,
+nominal_OPT,v1.5,1n,3n,no load,26915.3,50.3053,29.9089,
+grid_worst,v1.4,300p,1n,4 ohm,,0.350617,-4.66991,23
+grid_worst,v1.4,300p,1n,ELT 10,,6.40218,1.41965,8
+grid_worst,v1.4,300p,1n,no load,,1.34035,-8.22795,27
+grid_worst,v1.4,300p,1n,0.47 uF only,,11.1171,-13.1761,102
+grid_worst,v1.4,300p,1n,2 uF only,,18.4545,-9.64489,85
+grid_worst,v1.4,1n,3n,4 ohm,,0.240458,-6.75325,44
+grid_worst,v1.4,1n,3n,ELT 10,,9.24299,4.4089,6
+grid_worst,v1.4,1n,3n,no load,,0.715313,-5.62658,26
+grid_worst,v1.4,1n,3n,0.47 uF only,,4.06297,-12.5522,71
+grid_worst,v1.4,1n,3n,2 uF only,,24.8997,-15.0289,97
+grid_worst,v1.5,300p,1n,4 ohm,,28.7341,18.8076,0
+grid_worst,v1.5,300p,1n,ELT 10,,54.4192,27.7048,0
+grid_worst,v1.5,300p,1n,no load,,27.1105,25.3945,0
+grid_worst,v1.5,300p,1n,0.47 uF only,,1.16778,-5.60242,55
+grid_worst,v1.5,300p,1n,2 uF only,,1.47169,-9.6835,60
+grid_worst,v1.5,1n,3n,4 ohm,,6.45262,1.72195,7
+grid_worst,v1.5,1n,3n,ELT 10,,33.8386,20.9584,0
+grid_worst,v1.5,1n,3n,no load,,10.6015,2.97073,4
+grid_worst,v1.5,1n,3n,0.47 uF only,,1.7037,-6.83483,42
+grid_worst,v1.5,1n,3n,2 uF only,,14.6853,-11.7853,82
+grid_worst,v1.5-C,300p,1n,4 ohm,,50.6829,31.3353,0
+grid_worst,v1.5-C,300p,1n,ELT 10,,68.4903,21.843,0
+grid_worst,v1.5-C,300p,1n,no load,,53.0541,21.7444,0
+grid_worst,v1.5-C,300p,1n,0.47 uF only,,12.3816,1.76902,2
+grid_worst,v1.5-C,300p,1n,2 uF only,,0.0389516,-3.83293,20
+grid_worst,v1.5-C,1n,3n,4 ohm,,30.3637,12.4215,0
+grid_worst,v1.5-C,1n,3n,ELT 10,,46.547,23.999,0
+grid_worst,v1.5-C,1n,3n,no load,,38.5031,23.969,0
+grid_worst,v1.5-C,1n,3n,0.47 uF only,,3.85529,-0.671329,7
+grid_worst,v1.5-C,1n,3n,2 uF only,,5.67523,-6.13742,52
+response,v1.4,,,4 ohm,54823.9,-0.313565,13.5914,
+response,v1.5,,,4 ohm,36221.8,-0.0611796,13.604,
+response,v1.5-C,,,4 ohm,19009.5,-3.43002,12.9013,

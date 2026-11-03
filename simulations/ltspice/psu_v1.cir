@@ -17,7 +17,7 @@
 .param VBIASW=45       ; bias winding, Vrms at nominal mains (assumed)
 .param RBWIN=50        ; bias winding source resistance (ohm)
 .param CB1=47u RBF=1k CB2=100u   ; bias CRC filter
-.param RBLOAD=25.5k    ; standalone test load = four 102k bias dividers in parallel
+.param RBLOAD=24k      ; standalone test load = four 96k bias dividers in parallel
 * ---- transformer HT winding (Thevenin: ideal sine + source resistance)
 VHT ht1 hts SIN(0 {VSEC*MAINS*sqrt(2)} 60)
 RS  hts ht2 {RSEC}
