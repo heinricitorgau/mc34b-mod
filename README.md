@@ -526,8 +526,10 @@ mc34b-mod/
 │   ├── figures/            模擬圖表（tools/make_figures.py 產生）
 │   └── data/               掃描結果 CSV（與圖同時產生）
 ├── tools/                  make_figures.py（重新產生 docs/figures）、make_schematic.py（產生 .asc）
-├── .gitignore
-└── README.md
+├── README.md               設計說明與模擬結果
+├── TODO.md                 待辦事項
+├── CLAUDE.md               給 Claude / 協作者的工作說明
+└── .gitignore
 ```
 
 ## 6. 如何執行模擬
@@ -556,37 +558,17 @@ python tools/make_figures.py fig4 fig5  # 只更新部分
 python tools/make_schematic.py          # 重新產生 LTspice 電路圖
 ```
 
-## 7. 待辦（模擬）
-
-- [x] 電源模型 psu_v1（SPICE），接上立體聲網表；B+ / B2 / B3、漣波、壓降、開機暫態
-- [ ] 在 PSUD2 依 `simulations/psud2/README.md` 輸入並存成 `psu_v1.psu`，與 SPICE 結果對照（需要在 Windows 上操作 PSUD2 GUI，無法在這裡的模擬環境自動完成）
-- [x] 市電 ±10 % 敏感度（含偏壓是否隨市電變動）
-- [x] 偏壓電源本身的模型：偏壓繞組、半波整流、CRC、每管分壓與可變電阻（§4.7）
-- [x] B+ 360–440 V 敏感度（偏壓固定 vs 隨 B+ 變動）
-- [x] OPT 敏感度：初級阻抗、UL 抽頭、初級電感、耦合係數
-- [x] 高頻補償併入 v1.3（階梯網路 3.3 k + 470 pF、Zobel 4.7 Ω + 100 nF），全部圖表重新產生
-- [x] ELT 10 估計阻抗模型，取代 4 Ω 電阻做負載分析；v1.4 依此改為 Zobel 10 Ω + 470 nF、拿掉 1 nF 相位超前電容
-- [x] 在 OPT 模型加入繞組分布電容，重新檢查高頻共振；v1.5 依此加入屏對屏 RC（§4.8）
-- [x] 方波響應（10 kHz / 1 kHz / 40 Hz、阻性與容性負載）
-- [x] 迴路增益、相位裕度、增益裕度（Middlebrook 電壓注入，含 OPT 網格最壞情況）
-- [ ] 若取得 ELT 10 實測阻抗曲線，用它校正 `elt10_est.inc`（目前沒有公開資料，需要實測；步驟見 §4.5 末）
-- [x] 純電容負載的穩定度：v1.4 / v1.5 / v1.5-C 比較（§4.8）。結論：只接電容在有繞組電容時都可能振盪，需以頻寬換取，v1.5 以 ELT 10 為準
-- [x] 管子離散敏感度：功率管配對、整體偏移、推動管、200 台蒙地卡羅（§4.6）
-- [ ] 在 OPT 模型加入鐵心飽和，評估直流不平衡對低頻失真的影響
-- [x] 6P3S-E 模型依 6P3S datasheet 工作點重新擬合 KG1 / KG2（§4.9）
-- [ ] 取得 6P3S-E / 6P3P 實測曲線（多個工作點）後，分別擬合 μ、EX、KG1、KG2（目前 6P3P 沒有獨立資料，與 6P3S-E 共用）
-- [x] 建立 LTspice 圖形化電路圖（`amp_channel_v1.asc`，由 `tools/make_schematic.py` 從網表產生並自動比對）
-
-## 8. Commit 慣例
+## 7. Commit 慣例
 
 ```
 feat(sim):    新增 / 修改模擬
 fix(model):   修正 SPICE 模型
-docs(fig):    更新圖表或說明
+docs(fig):    更新圖表
+docs:         更新說明文件（README、TODO、CLAUDE.md）
 chore:        目錄、設定等雜項
 ```
 
-## 9. 參考
+## 8. 參考
 
 - N. Koren, *Improved vacuum tube models for SPICE simulations*（6L6GC 參數）
 - Mullard, *Circuits for Audio Amplifiers*（5-20 直耦長尾對架構）
