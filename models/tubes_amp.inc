@@ -53,21 +53,6 @@ R1 G 5 {RGI}
 .MODEL DX D(IS=1N RS=1 CJO=10PF TT=1N)
 .ENDS 6N2
 
-* ---------------- 12AX7 (Koren original) : reference / comparison
-.SUBCKT 12AX7 A G K PARAMS: MU=100 EX=1.4 KG1=1060 KP=600 KVB=300
-+ RGI=2000 CCG=2.3P CGP=2.4P CCP=0.9P
-E1 7 0 VALUE={V(A,K)/KP*SOFTP(KP*(1/MU+V(G,K)/SQRT(KVB+V(A,K)*V(A,K))))}
-RE1 7 0 1G
-G1 A K VALUE={(PWR(V(7),EX)+PWRS(V(7),EX))/KG1}
-RCP A K 1G
-C1 K G {CCG}
-C2 G A {CGP}
-C3 K A {CCP}
-D3 5 K DX
-R1 G 5 {RGI}
-.MODEL DX D(IS=1N RS=1 CJO=10PF TT=1N)
-.ENDS 12AX7
-
 * ---------------- 6P3S-E (6П3С-Е, OTK) : 6L6 beam tetrode
 *  Pins: A G2 G1 K.  Screen current clamped (fixes LOG of a negative
 *  number in Koren's original when Vg1 < -Vg2/MU).

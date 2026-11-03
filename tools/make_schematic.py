@@ -33,7 +33,7 @@ CUSTOM = {
     "mc34b_pentode": [("A", 32, -64, "TOP"), ("G2", 96, -16, "RIGHT"), ("G1", -32, 16, "LEFT"), ("K", 32, 80, "BOTTOM")],
     "mc34b_speaker": [("P", 0, -48, "TOP"), ("N", 0, 48, "BOTTOM")],
 }
-TUBE_SYMBOL = {"6N1": "mc34b_triode", "6N2": "mc34b_triode", "12AX7": "mc34b_triode", "6P3S-E": "mc34b_pentode",
+TUBE_SYMBOL = {"6N1": "mc34b_triode", "6N2": "mc34b_triode", "6P3S-E": "mc34b_pentode",
                "6P3P": "mc34b_pentode", "ELT10_EST": "mc34b_speaker"}
 
 

@@ -1,5 +1,5 @@
 # =====================================================================
-#  mc34b-6p3s-mod  .gitignore
+#  mc34b-mod  .gitignore
 #  Rule of thumb: commit what a human wrote (.asc .cir .inc .asy .psu
 #  .plt), ignore what a simulator regenerates.
 # =====================================================================

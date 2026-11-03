@@ -523,11 +523,9 @@ mc34b-mod/
 │   │                       amp_channel_v1.asc + mc34b_*.asy（圖形化電路圖，自動產生）
 │   └── psud2/              PSUD2 輸入表 (README.md) 與 .psu 檔
 ├── docs/
-│   ├── datasheets/         真空管 datasheet（擬合 / 檢查模型用）
 │   ├── figures/            模擬圖表（tools/make_figures.py 產生）
 │   └── data/               掃描結果 CSV（與圖同時產生）
 ├── tools/                  make_figures.py（重新產生 docs/figures）、make_schematic.py（產生 .asc）
-├── setup-repo.ps1          一鍵建立目錄結構
 ├── .gitignore
 └── README.md
 ```
@@ -590,7 +588,7 @@ chore:        目錄、設定等雜項
 
 ## 9. 參考
 
-- N. Koren, *Improved vacuum tube models for SPICE simulations*（6L6GC / 12AX7 參數）
+- N. Koren, *Improved vacuum tube models for SPICE simulations*（6L6GC 參數）
 - Mullard, *Circuits for Audio Amplifiers*（5-20 直耦長尾對架構）
 - [Elac ELT 10 – HiFi-Wiki](https://hifi-wiki.com/index.php/Elac_ELT_10)
 - [6P3S – Radiomuseum](https://www.radiomuseum.org/tubes/tube_6p3s.html)（6P3S-E 擬合用的 datasheet 工作點）
