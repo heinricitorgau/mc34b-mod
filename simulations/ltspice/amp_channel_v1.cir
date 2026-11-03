@@ -23,6 +23,7 @@
 .param RZOB=10 CZOB=470n    ; output Zobel (v1.4; v1.3 was 4.7R+100n). Disable: RZOB=1e9
 .param RL=4                 ; resistive load (ohm); 1e6 = no load
 .param SPK=0                ; 1 = connect the estimated ELT 10 model (then set RL=1e6)
+.param DVB=0               ; V4 bias offset (V) relative to VB, for per-tube trim
 .param KGA=1460 KGB=1460   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1533 = 5 % less current)
 .param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
 * ---- power supply (ideal for v1; replace with PSUD2-derived model later)
@@ -59,7 +60,9 @@ RLB b2 lb {RLB}
 CCA la ga 0.22u
 CCB lb gb 0.22u
 RGA ga bias 100k
-RGB gb bias 100k
+RGB gb biasb 100k
+* per-tube bias trim for V4 (V4 bias = VB + DVB)
+VBIASB biasb bias {DVB}
 * ---- output: 6P3S-E pair, UL, fixed bias
 RSA ga gsa 1.5k
 RSB gb gsb 1.5k

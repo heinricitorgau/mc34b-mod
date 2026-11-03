@@ -960,9 +960,226 @@ def fig17():
     save(fig, "fig17_elt10_load.png",
          "v1.4 unless noted. Output voltage at 1 % THD. OPT core saturation at low frequency is not modelled.")
 
+# ---------------------------------------------------------------- tube-to-tube spread
+NOM = {"X1": dict(KG1=1414, MU=97.5),      # 6N2  (V1)
+       "X3": dict(KG1=1202, MU=35),        # 6N1  (LTP, driven half)
+       "X4": dict(KG1=1202, MU=35),        # 6N1  (LTP, grounded-grid half)
+       "X5": dict(KG1=1460, MU=8.7),       # 6P3S-E (V3)
+       "X6": dict(KG1=1460, MU=8.7)}       # 6P3S-E (V4)
+IK_TARGET = 34.4e-3                         # per-tube idle current the bias is trimmed to
+
+
+def chan_t(tubes=None, extra="", **over):
+    """channel() text with per-instance tube parameters, e.g. {"X5": {"KG1": 1600}}."""
+    txt = channel(**over)
+    for name, pars in (tubes or {}).items():
+        def add(mm):
+            line = mm.group(0)
+            for k, v in pars.items():
+                line = re.sub(rf"\s{k}=\S+", "", line) + f" {k}={v:.6g}"
+            return line
+        txt, n = re.subn(rf"(?m)^{name} .*$", add, txt)
+        assert n == 1, name
+    return txt + extra
+
+
+def op_t(txt):
+    nodes = ["ka", "kb", "pa", "pb", "v1a", "v1k", "lk", "la", "lb", "b2"]
+    o, _ = ngspice(txt + "VIN in 0 0\n.control\nop\n" + "".join(f"print v({n})\n" for n in nodes) + ".endc\n.end\n")
+    return {n: float(re.search(rf"v\({n}\) = (\S+)", o).group(1)) for n in nodes}
+
+
+def trim_bias(tubes, **over):
+    """Per-tube bias trim: VB sets V3 to IK_TARGET, then DVB sets V4. Returns (VB, DVB)."""
+    def solve(key, var, fixed, x0, x1, lo, hi):
+        f = lambda x: op_t(chan_t(tubes, **{**over, **fixed, var: f"{x:.5f}"}))[key] - IK_TARGET
+        f0, f1 = f(x0), f(x1)
+        for _ in range(8):
+            if abs(f1) < 2e-5 or f1 == f0:
+                break
+            step = -f1 * (x1 - x0) / (f1 - f0)
+            step = max(-3.0, min(3.0, step))              # current rises as bias goes less negative
+            x0, f0 = x1, f1
+            x1 = max(lo, min(hi, x1 + step))
+            f1 = f(x1)
+        return x1
+    vb = solve("ka", "VB", {"DVB": "0"}, -42.0, -41.0, -70.0, -20.0)
+    dvb = solve("kb", "DVB", {"VB": f"{vb:.5f}"}, 0.0, 0.5, -20.0, 20.0)
+    return vb, dvb
+
+
+def tone_t(txt, amp, freq=1e3):
+    """(P W into 4 ohm, THD %, H2 % of fundamental) for one 1 kHz tone."""
+    net = (txt + f"VIN in 0 SIN(0 {amp} {freq:g})\n.control\ntran 10u 0.14 0.12 10u\nfourier {freq:g} v(out)\n"
+           "meas tran vr rms v(out) from=0.12 to=0.14\n.endc\n.end\n")
+    for opts in ("", ".options method=gear reltol=2e-3\n"):
+        o, _ = ngspice(net.replace(".control", opts + ".control", 1), timeout=60)
+        m1, m2 = re.search(r"THD: (\S+)", o), re.search(r"vr\s+=\s+(\S+)", o)
+        h2 = re.search(r"(?m)^\s*2\s+\S+\s+(\S+)\s+\S+\s+(\S+)", o)
+        if m1 and m2:
+            return float(m2.group(1)) ** 2 / 4, float(m1.group(1)), (float(h2.group(2)) * 100 if h2 else float("nan"))
+    return float("nan"), float("nan"), float("nan")
+
+
+def thd10_t(txt):
+    """THD % and H2 % at 10 W (two-step level search)."""
+    p, _, _ = tone_t(txt, 0.3)
+    if not np.isfinite(p) or p <= 0:
+        return float("nan"), float("nan")
+    _, thd, h2 = tone_t(txt, 0.3 * np.sqrt(10.0 / p))
+    return thd, h2
+
+
+def pmax_t(txt, limit=1.0, lo=0.2, hi=1.2, iters=7):
+    best = 0.0
+    for _ in range(iters):
+        mid = 0.5 * (lo + hi)
+        p, thd, _ = tone_t(txt, mid)
+        if np.isfinite(thd) and thd <= limit:
+            lo, best = mid, p
+        else:
+            hi = mid
+    return best
+
+
+def gain_t(txt):
+    d = np.atleast_2d(ng_wrdata(txt + "VIN in 0 AC 1\n", "ac lin 1 1k 1k", ["vm(out)", "vm(ga)", "vm(gb)"]))
+    return d[0, 1], d[0, 2] / d[0, 3]
+
+
+def spread_case(tubes, trim):
+    """All metrics for one set of tube parameters, with or without per-tube bias trim."""
+    over = {}
+    if trim:
+        vb, dvb = trim_bias(tubes)
+        over = dict(VB=f"{vb:.5f}", DVB=f"{dvb:.5f}")
+    txt = chan_t(tubes, **over)
+    op = op_t(txt)
+    thd, h2 = thd10_t(txt)
+    g, bal = gain_t(txt)
+    return dict(ia=op["ka"] * 1e3, ib=op["kb"] * 1e3, pa=op["ka"] * op["pa"], pb=op["kb"] * op["pb"],
+                dI=(op["ka"] - op["kb"]) * 1e3, thd=thd, h2=h2, gain=g, bal=bal,
+                v1gk=-op["v1k"], ltp_vak=op["la"] - op["lk"], ltp_ia=(op["b2"] - op["la"]) / param("RLA") * 1e3,
+                vb=float(over.get("VB", -42)), dvb=float(over.get("DVB", 0)))
+
+
+def fig18():
+    """Tube-to-tube spread: output pair mismatch, common shift, driver tubes, Monte Carlo."""
+    pool = ThreadPoolExecutor(max_workers=os.cpu_count() or 2)
+    rows = []
+    # (a,b) output pair mismatch: V4 KG1 scaled, V3 nominal
+    mis = [0.8, 0.87, 0.93, 1.0, 1.07, 1.15, 1.25]
+    def mis_case(k_tr):
+        k, tr = k_tr
+        return k, tr, spread_case({"X6": dict(KG1=1460 * k)}, tr)
+    res_mis = list(pool.map(mis_case, [(k, tr) for tr in (False, True) for k in mis]))
+    for k, tr, r in res_mis:
+        rows.append(("pair_mismatch", f"V4 KG1 x{k}", "trimmed" if tr else "fixed -42 V", r))
+    # (c,d) both output tubes shifted together
+    sh = [0.8, 0.9, 1.0, 1.1, 1.25]
+    def sh_case(k_tr):
+        k, tr = k_tr
+        tubes = {"X5": dict(KG1=1460 * k), "X6": dict(KG1=1460 * k)}
+        r = spread_case(tubes, tr)
+        over = dict(VB=f"{r['vb']:.5f}", DVB=f"{r['dvb']:.5f}") if tr else {}
+        r["pmax"] = pmax_t(chan_t(tubes, **over))
+        return k, tr, r
+    res_sh = list(pool.map(sh_case, [(k, tr) for tr in (False, True) for k in sh]))
+    for k, tr, r in res_sh:
+        rows.append(("common_shift", f"V3+V4 KG1 x{k}", "trimmed" if tr else "fixed -42 V", r))
+    # (e) driver tubes (output bias trimmed, as on a finished amp)
+    drv = [0.75, 0.87, 1.0, 1.15, 1.33]
+    drv_sets = [("6N2 (V1) KG1", lambda k: {"X1": dict(KG1=1414 * k)}),
+                ("6N1 both halves KG1", lambda k: {"X3": dict(KG1=1202 * k), "X4": dict(KG1=1202 * k)}),
+                ("6N1 halves mismatched", lambda k: {"X4": dict(KG1=1202 * k)})]
+    def drv_case(job):
+        name, fn, k = job
+        return name, k, spread_case(fn(k), True)
+    res_drv = list(pool.map(drv_case, [(n, fn, k) for n, fn in drv_sets for k in drv]))
+    for name, k, r in res_drv:
+        rows.append(("driver", f"{name} x{k}", "trimmed", r))
+    # (f) Monte Carlo: every tube independent, KG1 lognormal sigma 10 %, MU normal sigma 3 %
+    rng = np.random.default_rng(20261103)
+    samples = []
+    for i in range(200):
+        tubes = {n: dict(KG1=v["KG1"] * float(np.exp(rng.normal(0, 0.10))), MU=v["MU"] * float(1 + rng.normal(0, 0.03)))
+                 for n, v in NOM.items()}
+        samples.append(tubes)
+    def mc_case(job):
+        i, tubes = job
+        return i, spread_case(tubes, False), spread_case(tubes, True)
+    res_mc = list(pool.map(mc_case, list(enumerate(samples))))
+    for i, ru, rt in res_mc:
+        rows.append(("monte_carlo", f"sample {i}", "fixed -42 V", ru))
+        rows.append(("monte_carlo", f"sample {i}", "trimmed", rt))
+    pool.shutdown()
+    keys = ["ia", "ib", "pa", "pb", "dI", "thd", "h2", "gain", "bal", "v1gk", "ltp_vak", "ltp_ia", "vb", "dvb"]
+    write_csv("fig18_tube_spread.csv", ["study", "case", "bias"] + keys,
+              [(a, b, c) + tuple(float(r[k]) for k in keys) for a, b, c, r in rows])
+    plot_fig18()
+
+
+def plot_fig18():
+    import csv
+    with open(os.path.join(DATA, "fig18_tube_spread.csv"), encoding="utf-8") as fh:
+        rows = list(csv.DictReader(fh))
+    f = lambda r, k: float(r[k])
+    fig, axs = plt.subplots(2, 3, figsize=(14.4, 8.4))
+    # (a) DC imbalance vs current ratio
+    for bias, col, lab in [("fixed -42 V", C2, "bias fixed at -42 V"), ("trimmed", C1, "each tube trimmed to 34.4 mA")]:
+        r = [x for x in rows if x["study"] == "pair_mismatch" and x["bias"] == bias]
+        k = [float(x["case"].split("x")[-1]) for x in r]
+        axs[0, 0].plot(k, [abs(f(x, "dI")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
+        axs[0, 1].plot(k, [f(x, "thd") for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
+    axs[0, 0].set(title="(a) Pair mismatch: OPT DC imbalance", xlabel="V4 KG1 / nominal  (>1 = less current)",
+                  ylabel="|Ik(V3) - Ik(V4)| (mA)")
+    axs[0, 0].legend(loc="upper center", fontsize=8.5)
+    axs[0, 1].set(title="(b) Pair mismatch: THD at 10 W", xlabel="V4 KG1 / nominal", ylabel="THD (%)", ylim=(0, None))
+    # (c,d) common shift
+    for bias, col, lab in [("fixed -42 V", C2, "bias fixed at -42 V"), ("trimmed", C1, "trimmed to 34.4 mA")]:
+        r = [x for x in rows if x["study"] == "common_shift" and x["bias"] == bias]
+        k = [float(x["case"].split("x")[-1]) for x in r]
+        axs[0, 2].plot(k, [max(f(x, "pa"), f(x, "pb")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
+    axs[0, 2].axhline(20.5, color=C4, lw=2, ls="--")
+    axs[0, 2].text(0.81, 21.0, "rating 20.5 W", color=INK2, fontsize=9)
+    axs[0, 2].set(title="(c) Both output tubes shifted: idle Pa", xlabel="V3 and V4 KG1 / nominal",
+                  ylabel="Pa per tube (W)", ylim=(0, 32))
+    axs[0, 2].legend(loc="upper right", fontsize=8.5)
+    # (d) driver tubes
+    for name, col in [("6N2 (V1) KG1", C1), ("6N1 both halves KG1", C2), ("6N1 halves mismatched", C3)]:
+        r = [x for x in rows if x["study"] == "driver" and x["case"].startswith(name)]
+        k = [float(x["case"].split("x")[-1]) for x in r]
+        axs[1, 0].plot(k, [f(x, "thd") for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=name)
+    axs[1, 0].set(title="(d) Driver tubes: THD at 10 W (output trimmed)", xlabel="KG1 / nominal",
+                  ylabel="THD (%)", ylim=(0, None))
+    axs[1, 0].legend(loc="lower right", fontsize=8.5)
+    # (e,f) Monte Carlo
+    mu = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "fixed -42 V"]
+    mt = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "trimmed"]
+    pa_u = np.array([max(f(x, "pa"), f(x, "pb")) for x in mu])
+    bins = np.arange(4, 30, 1.0)
+    axs[1, 1].hist(pa_u, bins=bins, color=C2, alpha=0.85, rwidth=0.9)
+    axs[1, 1].axvline(20.5, color=C4, lw=2, ls="--")
+    axs[1, 1].axvline(13.7, color=C1, lw=2)
+    axs[1, 1].text(13.9, axs[1, 1].get_ylim()[1] * 0.92, "trimmed: 13.7 W", color=INK2, fontsize=9)
+    n_over = int((pa_u > 20.5).sum())
+    axs[1, 1].text(20.8, axs[1, 1].get_ylim()[1] * 0.8, f"{n_over} of {len(pa_u)}\nover 20.5 W", color=INK2, fontsize=9)
+    axs[1, 1].set(title="(e) Monte Carlo (200): hotter tube idle Pa",
+                  xlabel="Pa of the hotter output tube, bias fixed at -42 V (W)", ylabel="Count")
+    t_u = np.array([f(x, "thd") for x in mu]); t_t = np.array([f(x, "thd") for x in mt])
+    tb = np.linspace(0, max(np.nanpercentile(t_u, 99), np.nanpercentile(t_t, 99)) * 1.05, 26)
+    axs[1, 2].hist(t_u, bins=tb, color=C2, alpha=0.6, label=f"fixed -42 V: median {np.nanmedian(t_u):.2f} %")
+    axs[1, 2].hist(t_t, bins=tb, color=C1, alpha=0.6, label=f"trimmed: median {np.nanmedian(t_t):.2f} %")
+    axs[1, 2].set(title="(f) Monte Carlo (200): THD at 10 W", xlabel="THD (%)", ylabel="Count")
+    axs[1, 2].legend(loc="upper right", fontsize=8.5)
+    fig.tight_layout()
+    save(fig, "fig18_tube_spread.png",
+         "v1.4, 4 ohm, ideal 400 V. KG1 sets tube current (Ia ~ 1/KG1). Monte Carlo: KG1 lognormal sigma 10 %, mu sigma 3 %, all 5 tubes independent. "
+         "Data: docs/data/fig18_tube_spread.csv")
+
 
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, fig18=fig18, plot18=plot_fig18, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)
