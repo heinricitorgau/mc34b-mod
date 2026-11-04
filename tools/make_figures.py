@@ -291,7 +291,7 @@ def fig3():
     B = 397
     ax.plot([0, B], [B / 1500 * 1e3, 0], color=C2, lw=2, label="Class-B load line Raa/4 = 1.5k")
     ax.plot([B], [34.4], "o", ms=8, color=INK, mec=SURF, mew=2, zorder=5)
-    ax.annotate("Idle: 397 V, 34.4 mA, Vg -40.9 V (13.7 W)", (B, 34.4), (405, 133),
+    ax.annotate("Idle: 397 V, 34.4 mA, Vg -42.9 V (13.7 W)", (B, 34.4), (405, 133),
                 arrowprops=dict(arrowstyle="-", color=INK2, lw=1), fontsize=9.5)
     ax.set_title("V3/V4  6P3S-E plate curves, Vg2 = 397 V", pad=18)
     ax.set( xlabel="Plate-cathode voltage (V)",
@@ -322,7 +322,7 @@ def fig4():
 
 def fig5():
     amps = [0.03, 0.06, 0.1, 0.15, 0.2, 0.25, 0.3, 0.35, 0.4, 0.45, 0.5, 0.55, 0.58, 0.61, 0.64, 0.67]
-    modes = [("Fixed bias, Vg = -40.9 V", dict(), C1),
+    modes = [("Fixed bias, Vg = -42.9 V", dict(), C1),
              ("Cathode bias, Rk = 1.1k || 220 uF", dict(VB="0", RKO="1.1k", CKO="220u"), C2)]
     fig, ax = plt.subplots(figsize=(7.2, 4.6))
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
@@ -424,7 +424,7 @@ def build_stereo(real_bias=True, write=True):
 {chr(10).join(params)}
 * ---- per-tube bias dividers (range about -34 ... -49 V on a -58.5 V bus) ----
 .param RBTOP=15k RPOT=25k RBBOT=56k CWIPER=10u
-.param WA=0.462 WB=0.462   ; pot wiper position 0..1 (1 = most negative); 0.462 = 34.4 mA per tube (nominal tubes)
+.param WA=0.598 WB=0.598   ; pot wiper position 0..1 (1 = most negative); 0.598 = 34.4 mA per tube (nominal tubes)
 .param VB={{VBN*MAINS}}   ; used only by the ideal-bias variant (build_stereo(real_bias=False))
 * ---- supply parameters (from psu_v1.cir) ----
 {chr(10).join(pparams)}
@@ -437,7 +437,7 @@ def build_stereo(real_bias=True, write=True):
 XL inL outL bp nbus AMPCH
 XR inR outR bp nbus AMPCH
 * ---- start near steady state (released after the operating point) ----
-.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.3 V(xl:bias)=-41 V(xl:biasb)=-41 V(xr:bias)=-41 V(xr:biasb)=-41
+.ic V(raw)=407 V(bp)=400 V(xl:b2)=389 V(xl:b3)=358 V(xr:b2)=389 V(xr:b3)=358 V(nb1)=-61 V(nbus)=-58.3 V(xl:bias)=-43 V(xl:biasb)=-43 V(xr:bias)=-43 V(xr:biasb)=-43
 * ---- stimulus & analysis (both channels driven, in phase) ----
 .param AMP=0.5
 VINL inL 0 SIN(0 {{AMP}} 1k)
@@ -511,7 +511,7 @@ def fig9():
     """Idle ripple: C1, B+, and hum at the speaker for a matched / mismatched pair."""
     win = "tran 10u 0.55 0.5 10u"
     d = ng_wrdata(stereo(0), win, ["v(raw)", "v(bp)", "v(outl)"])
-    dm = ng_wrdata(stereo(0, KGB="1722"), win, ["v(outl)"])
+    dm = ng_wrdata(stereo(0, KGB="1783"), win, ["v(outl)"])
     t = (d[:, 0] - d[0, 0]) * 1e3
 
     def ac(y):                       # remove mean and slow settling drift
@@ -563,7 +563,7 @@ def fig10():
     a2.set(xlabel="Output power per channel (W)", ylabel="Mean B+ (V)", xlim=(0.1, 40))
     fig.align_ylabels()
     save(fig, "fig10_psu_thd_sag.png",
-         "Bias from the bias-supply model (pots WA = WB = 0.462). Sag lowers clipping power; below clipping the curves match.")
+         "Bias from the bias-supply model (pots WA = WB = 0.598). Sag lowers clipping power; below clipping the curves match.")
 
 # ---------------------------------------------------------------- sensitivity (B+, OPT)
 DATA = os.path.join(ROOT, "docs", "data")
@@ -641,8 +641,8 @@ def _bottom_legend(fig, handles, labels, ncol):
 def fig11():
     """B+ sensitivity, single channel, ideal supply; fixed vs tracking bias."""
     bps = [360, 370, 380, 390, 400, 410, 420, 430, 440]
-    modes = [("Bias fixed at -40.9 V", lambda b: -40.9),
-             ("Bias scales with B+ (-40.9 V x B+/400)", lambda b: -40.9 * b / 400)]
+    modes = [("Bias fixed at -42.9 V", lambda b: -42.9),
+             ("Bias scales with B+ (-42.9 V x B+/400)", lambda b: -42.9 * b / 400)]
     rows = []
     for lab, vbf in modes:
         def one(b):
@@ -660,7 +660,7 @@ def plot_fig11():
     rows = read_csv("fig11_bplus_sweep.csv")
     fig, axs = plt.subplots(1, 3, figsize=(12.6, 4.4))
     hs = []
-    for lab, col in [("Bias fixed at -40.9 V", C1), ("Bias scales with B+ (-40.9 V x B+/400)", C2)]:
+    for lab, col in [("Bias fixed at -42.9 V", C1), ("Bias scales with B+ (-42.9 V x B+/400)", C2)]:
         r = np.array([[float(x[k]) for k in ("Bplus_V", "Pa_W", "P_1pct_W", "THD_10W_pct")]
                       for x in rows if x["bias_mode"] == lab])
         for ax, k in zip(axs, (1, 2, 3)):
@@ -671,7 +671,7 @@ def plot_fig11():
     axs[0].set(title="Idle plate dissipation", xlabel="B+ (V)", ylabel="Pa per tube (W)", ylim=(0, 28))
     axs[1].set(title="Max power at 1 % THD", xlabel="B+ (V)", ylabel="Output power (W)", ylim=(0, 40))
     axs[2].set(title="THD at 10 W", xlabel="B+ (V)", ylabel="THD (%)", ylim=(0, 0.4))
-    _bottom_legend(fig, hs, ["Bias fixed at -40.9 V", "Bias scales with B+ (-40.9 V x B+/400)"], 2)
+    _bottom_legend(fig, hs, ["Bias fixed at -42.9 V", "Bias scales with B+ (-42.9 V x B+/400)"], 2)
     save(fig, "fig11_bplus_sensitivity.png",
          "Single channel, ideal B+ source, 6 k / 43 % UL OPT, 4 ohm. Data: docs/data/fig11_bplus_sweep.csv")
 
@@ -711,7 +711,7 @@ def plot_fig12():
     axs[2].set(title="Damping factor at 1 kHz", xlabel="OPT primary (k ohm, p-p)", ylabel="4 ohm / Zout", ylim=(0, None))
     _bottom_legend(fig, hs, labs, 4)
     save(fig, "fig12_opt_raa_ul.png",
-         "v1.5 circuit, B+ 400 V ideal, bias -40.9 V. Data: docs/data/fig12_opt_raa_ul.csv")
+         "v1.5 circuit, B+ 400 V ideal, bias -42.9 V. Data: docs/data/fig12_opt_raa_ul.csv")
 
 
 def fig13():
@@ -760,7 +760,7 @@ def square(freq, amp=0.16, extra="", cycles=None, **over):
     tstop = n * T
     step = min(T / 4000, 50e-9) if freq >= 1e3 else T / 2000   # T/4000 fails in ngspice at 40 Hz
     # two unipolar pulses in series: starts at 0 V, so the DC operating point is the idle one
-    tr = 20e-9 if freq >= 1e3 else 1e-6        # 1 us edges below 1 kHz (20 ns stalls ngspice at 40 Hz)
+    tr = 20e-9 if freq >= 5e3 else 1e-6        # 1 us edges below 5 kHz (20 ns can stall ngspice at 1 kHz / 40 Hz)
     w = T / 2 - tr
     src = (f"VIN in in2 PULSE(0 {amp} 0 {tr:.3g} {tr:.3g} {w:.6g} {T:.6g})\n"
            f"VIN2 in2 0 PULSE(0 {-amp} {T/2:.6g} {tr:.3g} {tr:.3g} {w:.6g} {T:.6g})\n")
@@ -768,7 +768,7 @@ def square(freq, amp=0.16, extra="", cycles=None, **over):
         d = ng_wrdata(channel(**over) + extra + src + opts,
                       f"tran {step:.3g} {tstop:.6g} {tstop-2*T:.6g} {step:.3g}", ["v(out)"],
                       timeout=180, allow_fail=True)
-        if d is not None and len(d) > 10:
+        if d is not None and len(d) > 10 and d[-1, 0] - d[0, 0] > 1.95 * T:   # whole window simulated
             return d[:, 0] - d[0, 0], d[:, 1]
     print(f"    ! square {freq:g} Hz {over} {extra.strip()} did not finish (likely oscillating)")
     return None
@@ -946,7 +946,7 @@ def tone_point(freq, amp, **over):
     return None
 
 
-def p_at_thd_f(freq, limit=1.0, lo=0.2, hi=1.4, iters=7, **over):
+def p_at_thd_f(freq, limit=1.0, lo=0.02, hi=1.4, iters=9, **over):
     best = 0.0
     for _ in range(iters):
         mid = 0.5 * (lo + hi)
@@ -1042,8 +1042,8 @@ def fig17():
 NOM = {"X1": dict(KG1=1414, MU=97.5),      # 6N2  (V1)
        "X3": dict(KG1=1202, MU=35),        # 6N1  (LTP, driven half)
        "X4": dict(KG1=1202, MU=35),        # 6N1  (LTP, grounded-grid half)
-       "X5": dict(KG1=1640, MU=8.7),       # 6P3S-E (V3)
-       "X6": dict(KG1=1640, MU=8.7)}       # 6P3S-E (V4)
+       "X5": dict(KG1=1698, MU=10.33),       # 6P3S-E (V3)
+       "X6": dict(KG1=1698, MU=10.33)}       # 6P3S-E (V4)
 IK_TARGET = 34.4e-3                         # per-tube idle current the bias is trimmed to
 
 
@@ -1138,7 +1138,7 @@ def spread_case(tubes, trim):
     return dict(ia=op["ka"] * 1e3, ib=op["kb"] * 1e3, pa=op["ka"] * op["pa"], pb=op["kb"] * op["pb"],
                 dI=(op["ka"] - op["kb"]) * 1e3, thd=thd, h2=h2, gain=g, bal=bal,
                 v1gk=-op["v1k"], ltp_vak=op["la"] - op["lk"], ltp_ia=(op["b2"] - op["la"]) / param("RLA") * 1e3,
-                vb=float(over.get("VB", -40.9)), dvb=float(over.get("DVB", 0)))
+                vb=float(over.get("VB", -42.9)), dvb=float(over.get("DVB", 0)))
 
 
 def fig18():
@@ -1149,22 +1149,22 @@ def fig18():
     mis = [0.8, 0.87, 0.93, 1.0, 1.07, 1.15, 1.25]
     def mis_case(k_tr):
         k, tr = k_tr
-        return k, tr, spread_case({"X6": dict(KG1=1640 * k)}, tr)
+        return k, tr, spread_case({"X6": dict(KG1=1698 * k)}, tr)
     res_mis = list(pool.map(mis_case, [(k, tr) for tr in (False, True) for k in mis]))
     for k, tr, r in res_mis:
-        rows.append(("pair_mismatch", f"V4 KG1 x{k}", "trimmed" if tr else "fixed -40.9 V", r))
+        rows.append(("pair_mismatch", f"V4 KG1 x{k}", "trimmed" if tr else "fixed -42.9 V", r))
     # (c,d) both output tubes shifted together
     sh = [0.8, 0.9, 1.0, 1.1, 1.25]
     def sh_case(k_tr):
         k, tr = k_tr
-        tubes = {"X5": dict(KG1=1640 * k), "X6": dict(KG1=1640 * k)}
+        tubes = {"X5": dict(KG1=1698 * k), "X6": dict(KG1=1698 * k)}
         r = spread_case(tubes, tr)
         over = dict(VB=f"{r['vb']:.5f}", DVB=f"{r['dvb']:.5f}") if tr else {}
         r["pmax"] = pmax_t(chan_t(tubes, **over))
         return k, tr, r
     res_sh = list(pool.map(sh_case, [(k, tr) for tr in (False, True) for k in sh]))
     for k, tr, r in res_sh:
-        rows.append(("common_shift", f"V3+V4 KG1 x{k}", "trimmed" if tr else "fixed -40.9 V", r))
+        rows.append(("common_shift", f"V3+V4 KG1 x{k}", "trimmed" if tr else "fixed -42.9 V", r))
     # (e) driver tubes (output bias trimmed, as on a finished amp)
     drv = [0.75, 0.87, 1.0, 1.15, 1.33]
     drv_sets = [("6N2 (V1) KG1", lambda k: {"X1": dict(KG1=1414 * k)}),
@@ -1188,7 +1188,7 @@ def fig18():
         return i, spread_case(tubes, False), spread_case(tubes, True)
     res_mc = list(pool.map(mc_case, list(enumerate(samples))))
     for i, ru, rt in res_mc:
-        rows.append(("monte_carlo", f"sample {i}", "fixed -40.9 V", ru))
+        rows.append(("monte_carlo", f"sample {i}", "fixed -42.9 V", ru))
         rows.append(("monte_carlo", f"sample {i}", "trimmed", rt))
     pool.shutdown()
     keys = ["ia", "ib", "pa", "pb", "dI", "thd", "h2", "gain", "bal", "v1gk", "ltp_vak", "ltp_ia", "vb", "dvb"]
@@ -1204,7 +1204,7 @@ def plot_fig18():
     f = lambda r, k: float(r[k])
     fig, axs = plt.subplots(2, 3, figsize=(14.4, 8.4))
     # (a) DC imbalance vs current ratio
-    for bias, col, lab in [("fixed -40.9 V", C2, "bias fixed at -40.9 V"), ("trimmed", C1, "each tube trimmed to 34.4 mA")]:
+    for bias, col, lab in [("fixed -42.9 V", C2, "bias fixed at -42.9 V"), ("trimmed", C1, "each tube trimmed to 34.4 mA")]:
         r = [x for x in rows if x["study"] == "pair_mismatch" and x["bias"] == bias]
         k = [float(x["case"].split("x")[-1]) for x in r]
         axs[0, 0].plot(k, [abs(f(x, "dI")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
@@ -1214,7 +1214,7 @@ def plot_fig18():
     axs[0, 0].legend(loc="upper center", fontsize=8.5)
     axs[0, 1].set(title="(b) Pair mismatch: THD at 10 W", xlabel="V4 KG1 / nominal", ylabel="THD (%)", ylim=(0, None))
     # (c,d) common shift
-    for bias, col, lab in [("fixed -40.9 V", C2, "bias fixed at -40.9 V"), ("trimmed", C1, "trimmed to 34.4 mA")]:
+    for bias, col, lab in [("fixed -42.9 V", C2, "bias fixed at -42.9 V"), ("trimmed", C1, "trimmed to 34.4 mA")]:
         r = [x for x in rows if x["study"] == "common_shift" and x["bias"] == bias]
         k = [float(x["case"].split("x")[-1]) for x in r]
         axs[0, 2].plot(k, [max(f(x, "pa"), f(x, "pb")) for x in r], "o-", color=col, ms=5, mec=SURF, mew=1, label=lab)
@@ -1232,7 +1232,7 @@ def plot_fig18():
                   ylabel="THD (%)", ylim=(0, None))
     axs[1, 0].legend(loc="lower right", fontsize=8.5)
     # (e,f) Monte Carlo
-    mu = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "fixed -40.9 V"]
+    mu = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "fixed -42.9 V"]
     mt = [x for x in rows if x["study"] == "monte_carlo" and x["bias"] == "trimmed"]
     pa_u = np.array([max(f(x, "pa"), f(x, "pb")) for x in mu])
     bins = np.arange(4, 30, 1.0)
@@ -1243,10 +1243,10 @@ def plot_fig18():
     n_over = int((pa_u > 20.5).sum())
     axs[1, 1].text(20.8, axs[1, 1].get_ylim()[1] * 0.8, f"{n_over} of {len(pa_u)}\nover 20.5 W", color=INK2, fontsize=9)
     axs[1, 1].set(title="(e) Monte Carlo (200): hotter tube idle Pa",
-                  xlabel="Pa of the hotter output tube, bias fixed at -40.9 V (W)", ylabel="Count")
+                  xlabel="Pa of the hotter output tube, bias fixed at -42.9 V (W)", ylabel="Count")
     t_u = np.array([f(x, "thd") for x in mu]); t_t = np.array([f(x, "thd") for x in mt])
     tb = np.linspace(0, max(np.nanpercentile(t_u, 99), np.nanpercentile(t_t, 99)) * 1.05, 26)
-    axs[1, 2].hist(t_u, bins=tb, color=C2, alpha=0.6, label=f"fixed -40.9 V: median {np.nanmedian(t_u):.2f} %")
+    axs[1, 2].hist(t_u, bins=tb, color=C2, alpha=0.6, label=f"fixed -42.9 V: median {np.nanmedian(t_u):.2f} %")
     axs[1, 2].hist(t_t, bins=tb, color=C1, alpha=0.6, label=f"trimmed: median {np.nanmedian(t_t):.2f} %")
     axs[1, 2].set(title="(f) Monte Carlo (200): THD at 10 W", xlabel="THD (%)", ylabel="Count")
     axs[1, 2].legend(loc="upper right", fontsize=8.5)
@@ -1296,11 +1296,11 @@ def fig19():
 
     def mjob(j):
         mm, rb = j
-        over = {} if rb else {"VBN": f"{-41.02/mm:.4f}"}     # ideal source held at -41.02 V for all mains
+        over = {} if rb else {"VBN": f"{-43.05/mm:.4f}"}     # ideal source held at -43.05 V for all mains
         return mm, rb, stereo_meas(meas, tstop=1.0, t0=0.95, mains=mm, real_bias=rb, **over)
     with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
         res = list(ex.map(mjob, [(mm, rb) for rb in (True, False) for mm in mains]))
-    for rb, col, lab in [(True, C1, "bias supply model (tracks mains)"), (False, C2, "bias held at -41.0 V")]:
+    for rb, col, lab in [(True, C1, "bias supply model (tracks mains)"), (False, C2, "bias held at -43.0 V")]:
         r = [x for x in res if x[1] == rb]
         axs[1, 0].plot([110 * x[0] for x in r], [x[2]["ik"] * x[2]["pa"] for x in r], "o-", color=col, ms=5,
                        mec=SURF, mew=1, label=lab)
@@ -1333,10 +1333,10 @@ def fig19():
     fig.tight_layout()
     # hum at 120 Hz: bias supply vs ideal bias, matched and 5 % mismatched pair
     for rb in (True, False):
-        for kgb in ("1640", "1722"):
+        for kgb in ("1698", "1783"):
             d = ng_wrdata(stereo(0, real_bias=rb, KGB=kgb), "tran 10u 0.55 0.5 10u", ["v(outl)", "v(xl.bias)", "v(nbus)"])
             t = d[:, 0] - d[0, 0]
-            rows.append(("hum_120Hz_rms_V", "bias supply" if rb else "ideal bias", "matched" if kgb == "1640" else "V4 5 % low",
+            rows.append(("hum_120Hz_rms_V", "bias supply" if rb else "ideal bias", "matched" if kgb == "1698" else "V4 5 % low",
                          _tone120(t, d[:, 1]), _tone120(t, d[:, 2]), _tone120(t, d[:, 3])))
     write_csv("fig19_bias_supply.csv", ["item", "case", "a", "b", "c", "d", "e", "f"],
               [tuple(r) + ("",) * (8 - len(r)) for r in rows])

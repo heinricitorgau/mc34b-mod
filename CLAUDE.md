@@ -14,6 +14,7 @@
 |---|---|---|
 | `models/tubes_amp.inc` | 6N1 / 6N2 / 6P3S-E / 6P3P 的 Koren 型模型（LTspice 語法：`PWR`、`PWRS`、`PARAMS:`） | 可 |
 | `models/elt10_est.inc` | ELT 10 估計阻抗模型 | 可 |
+| `docs/data/tube_curves/*.csv` | datasheet 曲線數位化資料（`tools/fit_tubes.py` 的輸入） | 可（新增資料） |
 | `models/opt_sat.inc` | 可飽和鐵心 OPT（§4.10）；與線性 OPT 相同繞組，只用在 `OPT="sat"` | 可 |
 | `simulations/ltspice/amp_channel_v1.cir` | 單聲道網表，**唯一的電路來源**；所有可調值在 `.param` 區 | 可 |
 | `simulations/ltspice/psu_v1.cir` | 電源（B+ 與偏壓）單獨模擬 | 可 |
@@ -34,11 +35,13 @@
 4. 依 `docs/data/*.csv` 與腳本印出的數值更新 README 的表格與文字；**數字一定要從 CSV / 輸出讀，不要估**。改版時在對應章節加一段「> **v1.x（日期）**：……」說明改了什麼、為什麼。
 5. 更新 `TODO.md`。
 
+改功率管模型時：`python tools/fit_tubes.py` 擬合後把參數寫回 `tubes_amp.inc`，同時更新 `amp_channel_v1.cir` 的 `KGA` / `KGB`（實例用 `KG1={KGA}` 覆寫模型預設值）與 `make_figures.py` 的 `NOM`、圖 9 / 18 / 19 的 KG1 數值。
+
 變更偏壓相關的東西（管子模型、`VB`、分壓電阻）後，要重新調整：單聲道 `VB`（`trim_bias()`，目標每管 34.4 mA），以及立體聲的可變電阻位置 `WA` / `WB`（在 `make_figures.py` 的 `build_stereo()` 中）。
 
 ## 設計基準（v1.5）
 
-- B+ 400 V（理想）；偏壓 −40.9 V（單聲道）／可變電阻 0.462、約 −41.0 V（立體聲）；每管 34.4 mA、13.7 W。
+- B+ 400 V（理想）；偏壓 −42.9 V（單聲道）／可變電阻 0.598、約 −43.0 V（立體聲）；每管 34.4 mA、13.7 W。管子模型 v4（datasheet 多點擬合）。
 - 高頻補償：6N2 屏極階梯 3.3 kΩ + 470 pF、迴授 2.7 kΩ ∥ 100 pF、Zobel 10 Ω + 1 µF、屏對屏 RC 4.7 kΩ + 2.2 nF。
 - 穩定度要在 OPT 參數網格（`RAA` 4–8 k、`TU` 0.2–0.55、`LH` 5–10、`KC` 0.999–0.9998，共 120 組）的最壞情況下檢查，並包含 4 Ω、ELT 10（`SPK=1 RL=1e6`）、不接負載；繞組電容典型值 `CPP=300p CPS=1n`。及格線：相位裕度 ≥ 20°、增益裕度 ≥ 3 dB。
 

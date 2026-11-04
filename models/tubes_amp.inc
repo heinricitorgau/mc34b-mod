@@ -1,6 +1,6 @@
 * =====================================================================
 *  tubes_amp.inc  --  Koren-type models for the mc34b-mod simulations
-*  For LTspice (uses PWR / PWRS / PARAMS:).  v3  2026-11
+*  For LTspice (uses PWR / PWRS / PARAMS:).  v4  2026-11
 *
 *  Triode pins : A G K            Pentode/beam pins : A G2 G1 K
 *
@@ -9,16 +9,16 @@
 *               6N2P: 250V, Ug -1.5V, 1.8mA, S=2.1mA/V, mu=97.5)
 *              Accurate around the class-A small-signal region;
 *              less accurate near cutoff and at positive grid.
-*  6P3S-E / 6P3P : Koren 6L6GC form (MU, EX, KP, KVB from Koren);
-*              v3: KG1 / KG2 refitted to the 6P3S datasheet point
-*              250V/250V/-14V -> Ia 72 mA, Ig2 5 mA, S 6 mA/V.
-*              No separate 6P3P curves found: same nominal values.
+*  6P3S-E / 6P3P : Koren beam-tetrode form plus a plate slope term LAM;
+*              v4: all parameters fitted to digitized datasheet curves,
+*              separately for 6P3S-E and 6P3P (README 4.9).
 *              Brand / sample spread: override KG1 per instance,
 *              e.g.  X1 a g2 g1 k 6P3P KG1=1600   (higher KG1 = less Ia)
 *  Inter-electrode capacitances are approximate.
 *  v2: LOG(1+EXP(x)) rewritten as SOFTP(x)=MAX(x,0)+LOG(1+EXP(-ABS(x)))
 *      (same math, no exp overflow / simulator exp-limiting).
 *  v3: 6P3S-E / 6P3P KG1 1460 -> 1640, KG2 4500 -> 7500 (datasheet fit).
+*  v4: 6P3S-E / 6P3P multi-point curve fits, separate parameters, LAM added.
 * =====================================================================
 .FUNC SOFTP(x) {MAX(x,0)+LOG(1+EXP(-ABS(x)))}
 
@@ -56,13 +56,15 @@ R1 G 5 {RGI}
 * ---------------- 6P3S-E (6П3С-Е, OTK) : 6L6 beam tetrode
 *  Pins: A G2 G1 K.  Screen current clamped (fixes LOG of a negative
 *  number in Koren's original when Vg1 < -Vg2/MU).
-*  KG1 / KG2 fitted to the 6P3S datasheet point Va = Vg2 = 250 V, Vg1 = -14 V:
-*  Ia 72 mA, Ig2 5 mA, S 6 mA/V (model: 72.1 mA, 5.0 mA, 6.1 mA/V). Before: 1460 / 4500.
-.SUBCKT 6P3S-E A G2 G1 K PARAMS: MU=8.7 EX=1.35 KG1=1640 KG2=7500
-+ KP=48 KVB=12 RGI=1000 CCG=11P CPG1=0.9P CCP=6.5P
+*  v4: MU EX KG1 KP KVB LAM fitted to 91 points digitized from the 6P3S /
+*  6P3S-E datasheet curves (tools/fit_tubes.py, docs/data/tube_curves/);
+*  KG2 from Ig2 = 5 mA at 250 V / 250 V / -14 V. rms error 9 %.
+*  LAM: plate-voltage slope above the knee (not in Koren's form; 0 = off).
+.SUBCKT 6P3S-E A G2 G1 K PARAMS: MU=10.33 EX=1.427 KG1=1698 KG2=5510
++ KP=30.21 KVB=22.38 LAM=4.366E-4 RGI=1000 CCG=11P CPG1=0.9P CCP=6.5P
 E1 7 0 VALUE={MAX(V(G2,K),1M)/KP*SOFTP(KP*(1/MU+V(G1,K)/MAX(V(G2,K),1M)))}
 RE1 7 0 1G
-G1 A K VALUE={(PWR(V(7),EX)+PWRS(V(7),EX))/KG1*ATAN(V(A,K)/KVB)}
+G1 A K VALUE={(PWR(V(7),EX)+PWRS(V(7),EX))/KG1*ATAN(V(A,K)/KVB)*(1+LAM*MAX(V(A,K),0))}
 G2 G2 K VALUE={PWR(MAX(V(G2,K)/MU+V(G1,K),0),EX)/KG2}
 RCP A K 1G
 C1 G1 K {CCG}
@@ -74,13 +76,14 @@ D1 5 K DX
 .ENDS 6P3S-E
 
 * ---------------- 6P3P (Shuguang) : 6L6G-class beam tetrode
-*  No separate published curves found: same nominal fit as 6P3S-E.
-*  Sweep KG1 / MU to study brand / sample spread (README 4.6).
-.SUBCKT 6P3P A G2 G1 K PARAMS: MU=8.7 EX=1.35 KG1=1640 KG2=7500
-+ KP=48 KVB=12 RGI=1000 CCG=11P CPG1=0.9P CCP=6.5P
+*  v4: fitted to 129 points digitized from the Chinese 6P3P handbook sheet
+*  (r-type.org/pdfs/6p3p.pdf); KG2 from its Ig2 curve (about 10 mA at Ug1 = 0,
+*  Ug2 = 250 V). rms error 10 %. Sweep KG1 / MU for sample spread.
+.SUBCKT 6P3P A G2 G1 K PARAMS: MU=11.40 EX=1.194 KG1=766.2 KG2=3998
++ KP=37.16 KVB=18.71 LAM=7.263E-4 RGI=1000 CCG=11P CPG1=0.9P CCP=6.5P
 E1 7 0 VALUE={MAX(V(G2,K),1M)/KP*SOFTP(KP*(1/MU+V(G1,K)/MAX(V(G2,K),1M)))}
 RE1 7 0 1G
-G1 A K VALUE={(PWR(V(7),EX)+PWRS(V(7),EX))/KG1*ATAN(V(A,K)/KVB)}
+G1 A K VALUE={(PWR(V(7),EX)+PWRS(V(7),EX))/KG1*ATAN(V(A,K)/KVB)*(1+LAM*MAX(V(A,K),0))}
 G2 G2 K VALUE={PWR(MAX(V(G2,K)/MU+V(G1,K),0),EX)/KG2}
 RCP A K 1G
 C1 G1 K {CCG}

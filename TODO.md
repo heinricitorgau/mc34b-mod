@@ -7,7 +7,8 @@
 - [ ] **OPT 鐵心參數**：若取得 MC34-B 的鐵心尺寸、圈數或低頻功率規格，用它取代 §4.10 假設的飽和頻率與電感倍數，並考慮加入磁滯與鐵損。
 - [ ] **PSUD2 檔案**：依 [`simulations/psud2/README.md`](simulations/psud2/README.md) 的輸入表在 PSUD2 輸入，存成 `simulations/psud2/psu_v1.psu`，並與 SPICE 版（`psu_v1.cir`）的 B+、漣波對照。需要在 Windows 上操作 PSUD2，無法在自動化環境完成。
 - [ ] **ELT 10 實測阻抗**：取得實測阻抗曲線（自己量或廠商資料）後，擬合 `models/elt10_est.inc` 的 `PARAMS:`，再重跑 `python tools/make_figures.py fig16 fig17`。目前沒有公開資料（README §4.5）。
-- [ ] **6P3S-E / 6P3P 多點擬合**：取得多個工作點的實測曲線後，分別擬合 μ、EX、KG1、KG2。目前只對 datasheet 一個工作點擬合 KG1 / KG2，6P3P 沒有獨立資料、與 6P3S-E 共用（README §4.9）。
+- [ ] **功率管截止區實測**：v4 模型的失真與偏壓對截止區的擬合（KP）很敏感，datasheet 小電流曲線的讀值最不準（README §4.9）。若取得實測曲線（尤其 Ug1 = −25 到 −45 V、高屏壓），加入 `docs/data/tube_curves/` 重跑 `tools/fit_tubes.py`。
+- [ ] **偏壓分壓電阻**：v4 模型下 56 kΩ 的可調範圍最負端只剩約 0.7 V 餘裕，可考慮改回 62 kΩ 並重新調整 `WA` / `WB`（README §4.7）。
 
 ## 已完成
 
@@ -25,4 +26,5 @@
 - [x] 純電容負載穩定度：v1.4 / v1.5 / v1.5-C 比較，結論是需以頻寬換取，v1.5 以 ELT 10 為準（§4.8）
 - [x] 6P3S-E 模型依 6P3S datasheet 工作點重新擬合 KG1 / KG2（§4.9）
 - [x] OPT 鐵心飽和：可飽和鐵心 OPT 模型（`opt_sat.inc`），低頻最大功率、低頻失真、直流不平衡敏感度（§4.10）
+- [x] 6P3S-E / 6P3P 依 datasheet 曲線多點擬合，兩管分開（`tools/fit_tubes.py`，§4.9）
 - [x] LTspice 圖形化電路圖 `amp_channel_v1.asc`，由 `tools/make_schematic.py` 從網表產生並自動比對（README §6）

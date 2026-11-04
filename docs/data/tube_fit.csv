@@ -1,0 +1,3 @@
+tube,MU,EX,KG1,KG2,KP,KVB,LAM,rms_err_v3_pct,rms_err_fit_pct,max_err_fit_pct,Ia_250_250_m14_mA,Ig2_mA,gm_mA_per_V,ri_kohm,n_points,screen_current_basis
+6P3S-E,10.327,1.42736,1697.87,5510.33,30.2131,22.3816,0.000436552,11.8256,9.01748,54.8152,69.7704,5,6.25866,22.6255,91,6P3S-E sheet: max 6 mA; 5 mA assumed typical
+6P3P,11.3994,1.19447,766.199,3998.06,37.1632,18.7079,0.000726288,15.8361,9.56823,49.6006,69.9284,2.96737,6.56157,17.5744,129,dashed Ig2 curve on the 6P3P sheet: about 10 mA at Ug1 = 0, Ua >= 200 V

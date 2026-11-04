@@ -2,8 +2,8 @@
 *  amp_channel_v1.cir  --  one channel, LTspice
 *  6N2 (V1) -> DC-coupled 6N1 LTP -> 2x 6P3S-E PP, UL, fixed bias
 *  OPT 6k p-p / 43% UL / 4 ohm ; B+ 400V ; global NFB 2.7k
-*  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v2).
-*  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-40.9V,
+*  Open with File > Open (All Files), Run.  Needs tubes_amp.inc (v4).
+*  Simulated (ideal 400V supply): idle 34.4 mA/tube @ VB=-42.9V,
 *  V1 0.65 mA / Vgk -0.90 V, LTP 4.9 mA per side (closed-loop DC point),
 *  v1.5: V1 step network 3.3k+470p, output Zobel 10R+1u, 100p lead cap on RFB,
 *        plate-plate RC 4.7k+2.2n (robust to OPT winding capacitance, README 4.8)
@@ -12,7 +12,7 @@
 .include ../../models/elt10_est.inc
 .options plotwinsize=0 numdgt=7
 * ---- design parameters (edit here) --------------------------------
-.param VB=-40.9      ; fixed bias, trimmed for 34.4 mA/tube (sweep with .step to study bias)
+.param VB=-42.9      ; fixed bias, trimmed for 34.4 mA/tube (sweep with .step to study bias)
 .param RKO=1 CKO=1p  ; 1R cathode sense (fixed bias). Cathode-bias test: RKO=1.1k CKO=220u VB=0
 .param RD1=1k RD2=47k
 .param RA1=330k RK2=2.7k   ; 2.7k: DC path via RFB is in parallel, Vgk ~ -0.9 V
@@ -25,7 +25,7 @@
 .param RL=4                 ; resistive load (ohm); 1e6 = no load
 .param SPK=0                ; 1 = connect the estimated ELT 10 model (then set RL=1e6)
 .param DVB=0               ; V4 bias offset (V) relative to VB, for per-tube trim
-.param KGA=1640 KGB=1640   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1722 = 5 % less current)
+.param KGA=1698 KGB=1698   ; KG1 of V3 / V4 (equal = matched pair; e.g. KGB=1783 = 5 % less current)
 .param AMP=0.5       ; input sine peak (V). ~0.6 Vpk = onset of clipping
 * ---- power supply (ideal for v1; replace with PSUD2-derived model later)
 VBP bp0 0 {VBPLUS}
