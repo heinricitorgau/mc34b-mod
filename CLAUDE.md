@@ -14,9 +14,11 @@
 |---|---|---|
 | `models/tubes_amp.inc` | 6N1 / 6N2 / 6P3S-E / 6P3P 的 Koren 型模型（LTspice 語法：`PWR`、`PWRS`、`PARAMS:`） | 可 |
 | `models/elt10_est.inc` | ELT 10 估計阻抗模型 | 可 |
+| `models/opt_sat.inc` | 可飽和鐵心 OPT（§4.10）；與線性 OPT 相同繞組，只用在 `OPT="sat"` | 可 |
 | `simulations/ltspice/amp_channel_v1.cir` | 單聲道網表，**唯一的電路來源**；所有可調值在 `.param` 區 | 可 |
 | `simulations/ltspice/psu_v1.cir` | 電源（B+ 與偏壓）單獨模擬 | 可 |
 | `simulations/ltspice/amp_stereo_psu_v1.cir` | 立體聲 + 電源 | **否**，由 `make_figures.py stereo` 產生 |
+| `simulations/ltspice/amp_channel_v1_sat.cir` | 單聲道 + 可飽和鐵心 OPT | **否**，由 `make_figures.py sat` / `fig21` 產生 |
 | `simulations/ltspice/amp_channel_v1.asc`、`mc34b_*.asy` | LTspice 圖形化電路圖 | **否**，由 `make_schematic.py` 產生 |
 | `docs/figures/*.png`、`docs/data/*.csv` | 圖表與數據 | **否**，由 `make_figures.py` 產生 |
 | `README.md` | 設計說明與所有模擬結果 | 可 |
@@ -46,6 +48,7 @@
 - 冷機開機暫態要 `.options method=gear` 並拿掉 `.ic`。
 - 機器只有 2 顆 CPU；長時間掃描用 `ThreadPoolExecutor(2)`，背景執行並設足夠的 timeout。
 - 停止背景 Python 時不要用會比對到自己 shell 指令的 `pkill -f`。
+- 在使用者電腦上跑時，每個指令最長約 3 分鐘、背景程序會被結束：設 `MF_CACHE=<資料夾>` 後重複執行同一個指令，每次接著做（結果依網表快取）。那台電腦沒有系統安裝的 ngspice，用的是解開在 `$HOME/ngs` 的 ngspice 36（`PATH` 與 `SPICE_LIB_DIR` 要指過去）。
 
 ## Git
 

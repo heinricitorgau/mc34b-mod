@@ -62,7 +62,30 @@ NGSPICE = shutil.which("ngspice_con") or shutil.which("ngspice")
 if not NGSPICE:
     sys.exit("ngspice not found on PATH (Windows: add the folder containing ngspice_con.exe)")
 
+# Optional result cache: set MF_CACHE=<dir> to keep every ngspice result keyed by its netlist, so a long
+# run can be split into several shorter runs (each one skips what is already done). Off by default.
+CACHE = os.environ.get("MF_CACHE")
+
+
+def _cache_path(text, ext):
+    import hashlib
+    os.makedirs(CACHE, exist_ok=True)
+    return os.path.join(CACHE, hashlib.sha1(text.encode()).hexdigest() + ext)
+
+
 def ngspice(netlist, timeout=180):
+    if CACHE:
+        cp = _cache_path(netlist, ".out")
+        if os.path.exists(cp):
+            return open(cp, encoding="utf-8").read(), None
+        out, d = _ngspice(netlist, timeout)
+        if out:
+            open(cp, "w", encoding="utf-8").write(out)
+        return out, d
+    return _ngspice(netlist, timeout)
+
+
+def _ngspice(netlist, timeout=180):
     with tempfile.TemporaryDirectory() as d:
         f = os.path.join(d, "x.sp")
         with open(f, "w") as fh:
@@ -79,6 +102,18 @@ def ngspice(netlist, timeout=180):
 
 def ng_wrdata(body, analysis, vectors, timeout=900, allow_fail=False):
     """Run analysis, return numpy array [x, v1, v2, ...] (None on failure if allow_fail)."""
+    if CACHE:
+        cp = _cache_path(body + analysis + " ".join(vectors), ".npy")
+        if os.path.exists(cp):
+            return np.load(cp)
+        d = _ng_wrdata(body, analysis, vectors, timeout, allow_fail)
+        if d is not None:
+            np.save(cp, d)
+        return d
+    return _ng_wrdata(body, analysis, vectors, timeout, allow_fail)
+
+
+def _ng_wrdata(body, analysis, vectors, timeout=900, allow_fail=False):
     with tempfile.TemporaryDirectory() as d:
         dat = os.path.join(d, "o.dat").replace("\\", "/")
         net = f"{body}\n.control\nset wr_singlescale\nset wr_vecnames\n{analysis}\n" \
@@ -104,7 +139,10 @@ def model_path(p):
 
 
 def channel(**over):
-    """Circuit section of amp_channel_v1.cir with .param overrides."""
+    """Circuit section of amp_channel_v1.cir with .param overrides.
+    OPT="sat" swaps in the saturable-core OPT (models/opt_sat.inc), see channel_sat()."""
+    if over.pop("OPT", "lin") == "sat":
+        return channel_sat(**over)
     txt = open(CIR, encoding="utf-8").read().replace("\r\n", "\n")
     txt = txt.split("* ---- stimulus")[0]
     txt = re.sub(r"(?im)^\.include\s+(\S+)", lambda mm: ".include " + model_path(mm.group(1)), txt)
@@ -115,6 +153,30 @@ def channel(**over):
         if n == 0:
             sys.exit(f"param {k} not found in netlist")
     return txt
+
+
+SAT_KEYS = ("LSAT", "PSH", "LMUL", "IDCX")
+
+
+def lsat_for(fsat, pref=25.0, raa=6000.0):
+    """Half-primary flux linkage at which pref watts (4 ohm) at fsat Hz reaches LSAT."""
+    return np.sqrt(2 * pref * raa) / 2 / (2 * np.pi * fsat)
+
+
+def channel_sat(**over):
+    """channel() with the linear coupled-inductor OPT replaced by models/opt_sat.inc.
+    Extra overrides: LSAT (V*s), PSH, LMUL, IDCX (A); everything else as channel()."""
+    sat = {k: over.pop(k) for k in SAT_KEYS if k in over}
+    txt = channel(**over)               # linear netlist, then swap the OPT block
+    lines = [l for l in txt.split("\n") if not re.match(r"(?i)^(L[1-5] |R[1-5]W |K[1-5][1-5] )", l)]
+    pars = " ".join(f"{k}={{{k}}}" for k in ("LH", "TU", "KC", "RAA")) + " " + \
+        " ".join(f"{k}={sat.get(k, d)}" for k, d in (("LSAT", "1e3"), ("PSH", "4"), ("LMUL", "1"), ("IDCX", "0")))
+    i = next(n for n, l in enumerate(lines) if l.startswith("CPPW "))
+    lines.insert(i, f"XOPT pa ula bp ulb pb out OPT_SAT PARAMS: {pars}")
+    lines.insert(1, ".include " + model_path("opt_sat.inc"))
+    out = "\n".join(lines)
+    assert out.count("XOPT") == 1 and not re.search(r"(?m)^K12 ", out)
+    return out
 
 
 def channel_op(**over):
@@ -1374,8 +1436,170 @@ def fig20():
     return rows, worst
 
 
+# ---------------------------------------------------------------- OPT core saturation (fig21)
+SATF = [12, 20, 30, 40]                 # Hz at which 25 W drives the core flux to LSAT (assumed range)
+SAT_REF = 20                            # reference case
+LF_FREQS = [20, 25, 30, 40, 60, 100, 200]
+SAT_CIR = os.path.join(ROOT, "simulations", "ltspice", "amp_channel_v1_sat.cir")
+
+
+def build_sat_cir():
+    """Write simulations/ltspice/amp_channel_v1_sat.cir: amp_channel_v1.cir with the saturable OPT."""
+    src = open(CIR, encoding="utf-8").read().replace("\r\n", "\n")
+    out = []
+    for l in src.split("\n"):
+        if re.match(r"(?i)^(L[1-5] |R[1-5]W |K[1-5][1-5] )", l):
+            continue
+        if l.startswith("CPPW "):
+            out.append("* saturable-core OPT (models/opt_sat.inc) replaces the linear L1-L5 / K block")
+            out.append("XOPT pa ula bp ulb pb out OPT_SAT PARAMS: LH={LH} TU={TU} KC={KC} RAA={RAA} "
+                       "LSAT={LSAT} PSH={PSH} LMUL={LMUL} IDCX={IDCX}")
+        out.append(l)
+        if l.startswith(".include ../../models/tubes_amp.inc"):
+            out.append(".include ../../models/opt_sat.inc")
+        if l.startswith(".param CPP="):
+            out.append(f".param LSAT={lsat_for(SAT_REF):.4f} PSH=4 LMUL=1 IDCX=0   ; core: flux limit (V*s, = 25 W at "
+                       f"{SAT_REF} Hz), knee sharpness, inductance multiplier, extra DC imbalance (A)")
+    txt = "\n".join(out)
+    head = ("* =====================================================================\n"
+            "*  amp_channel_v1_sat.cir  --  GENERATED by tools/make_figures.py (sat), do not edit.\n"
+            "*  amp_channel_v1.cir with the saturable-core OPT of models/opt_sat.inc (README 4.10).\n"
+            "*  LSAT large (e.g. 1e3) = linear core, identical to amp_channel_v1.cir.\n")
+    assert txt.count("XOPT ") == 1 and "K12 " not in txt
+    with open(SAT_CIR, "w", encoding="utf-8", newline="\n") as fh:
+        fh.write(head + txt)
+    return SAT_CIR
+
+
+def tone_sat(freq, amp, **over):
+    """(P W into 4 ohm, THD %, H2 %, H3 %) for one tone, any OPT model."""
+    T = 1.0 / freq
+    settle = max(0.15, 12 * T)
+    win = max(2, int(np.ceil(0.02 / T))) * T
+    step = min(10e-6, T / 400)
+    net = (channel(**over) + f"VIN in 0 SIN(0 {amp} {freq:g})\n.control\n"
+           f"tran {step:.3g} {settle+win:.6g} {settle:.6g} {step:.3g}\nfourier {freq:g} v(out)\n"
+           f"meas tran vr rms v(out) from={settle:.6g} to={settle+win:.6g}\n.endc\n.end\n")
+    for opts in ("", ".options method=gear reltol=2e-3\n"):
+        o, _ = ngspice(net.replace(".control", opts + ".control", 1), timeout=240)
+        m1, m2 = re.search(r"THD: (\S+)", o), re.search(r"vr\s+=\s+(\S+)", o)
+        if m1 and m2:
+            h = {int(a): float(b) * 100 for a, b in re.findall(r"(?m)^\s*([23])\s+\S+\s+\S+\s+\S+\s+(\S+)", o)}
+            return float(m2.group(1)) ** 2 / 4.0, float(m1.group(1)), h.get(2, np.nan), h.get(3, np.nan)
+    return np.nan, np.nan, np.nan, np.nan
+
+
+def p_at_thd_sat(freq, limit=1.0, lo=0.2, hi=1.4, iters=7, **over):
+    """Power at the THD limit (bisection on input amplitude) using tone_sat()."""
+    best = 0.0
+    for _ in range(iters):
+        mid = 0.5 * (lo + hi)
+        p, thd = tone_sat(freq, f"{mid:.5f}", **over)[:2]
+        if np.isfinite(thd) and thd <= limit:
+            lo, best = mid, p
+        else:
+            hi = mid
+    return best
+
+
+def fig21():
+    """Saturable OPT core: LF power limit, LF THD, DC-imbalance sensitivity, magnetizing current."""
+    rows = []
+    sat = lambda fs, **k: dict(OPT="sat", LSAT=f"{lsat_for(fs):.4f}", **k)
+    # (0) check: saturable model with a huge LSAT equals the linear netlist
+    lin_t, sat_t = tone_sat(1e3, 0.3), tone_sat(1e3, 0.3, OPT="sat")
+    lin_m, sat_m = ac_metrics(), ac_metrics(OPT="sat")
+    lin_l, sat_l = loop_margins(), loop_margins(OPT="sat")
+    rows.append(("check_1kHz_THD_pct", "linear / sat(LSAT=1e3)", lin_t[1], sat_t[1]))
+    rows.append(("check_gain_f3hi_Hz", "linear / sat(LSAT=1e3)", lin_m["gain"], sat_m["gain"], lin_m["fhi"], sat_m["fhi"]))
+    rows.append(("check_PM_GM", "linear / sat(LSAT=1e3)", lin_l[1], sat_l[1], lin_l[2], sat_l[2]))
+    # (a) max power at 1 % THD vs frequency
+    cases = [("linear core", {})] + [(f"saturates at {fs} Hz", sat(fs)) for fs in SATF]
+    jobs = [(lab, ov, f) for lab, ov in cases for f in LF_FREQS]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        pw = list(ex.map(lambda j: p_at_thd_sat(j[2], **j[1]), jobs))
+    for (lab, _, f), p in zip(jobs, pw):
+        rows.append(("P_1pct_W", lab, f, p))
+    # (b) THD vs power at 20 / 30 / 50 Hz, reference core vs linear
+    amps = [0.05, 0.1, 0.2, 0.3, 0.38, 0.45, 0.5, 0.55]
+    jobs = [(f, lab, ov, a) for f in (20, 30, 50) for lab, ov in (("linear core", {}), (f"saturates at {SAT_REF} Hz", sat(SAT_REF)))
+            for a in amps]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        tb = list(ex.map(lambda j: tone_sat(j[0], j[3], **j[2]), jobs))
+    for (f, lab, _, a), r in zip(jobs, tb):
+        rows.append(("THD_vs_P", lab, f, a) + tuple(r))
+    # (c) DC imbalance at 30 Hz, 10 W
+    a10 = np.sqrt(10 * 4) * np.sqrt(2) / lin_m["gain"]
+    dis = [0, 0.002, 0.005, 0.01, 0.015, 0.02, 0.025, 0.03]
+    jobs = [(lm, di) for lm in (1, 3, 10) for di in dis]
+    with ThreadPoolExecutor(max_workers=os.cpu_count() or 2) as ex:
+        tc = list(ex.map(lambda j: tone_sat(30, a10, **sat(SAT_REF, LMUL=j[0], IDCX=j[1])), jobs))
+    for (lm, di), r in zip(jobs, tc):
+        rows.append(("dc_imbalance_30Hz_10W", f"LMUL {lm}", di * 1e3) + tuple(r))
+    lin30 = tone_sat(30, a10)
+    rows.append(("dc_imbalance_30Hz_10W", "linear core", 0.0) + tuple(lin30))
+    # (d) magnetizing MMF waveform at 20 Hz, about 10 W
+    waves = []
+    a15 = np.sqrt(15 * 4) * np.sqrt(2) / lin_m["gain"]
+    for lab, di, col in [("balanced", 0.0, C1), ("20 mA imbalance", 0.02, C2)]:
+        T = 1 / 20.0
+        d = ng_wrdata(channel(**sat(SAT_REF, LMUL=3, IDCX=di)) + f"VIN in 0 SIN(0 {a15:.4f} 20)\n",
+                      f"tran 50u {16*T:g} {14*T:g} 50u", ["v(xopt.f)", "v(xopt.phi)", "v(out)"], timeout=600)
+        waves.append((lab, col, d))
+    for lab, _, d in waves:
+        rows.append(("mmf_20Hz_15W_LMUL3", lab, float(d[:, 1].min() * 1e3), float(d[:, 1].max() * 1e3),
+                     float(d[:, 2].min()), float(d[:, 2].max())))
+    write_csv("fig21_opt_saturation.csv", ["study", "case", "a", "b", "c", "d", "e", "f"],
+              [tuple(r) + ("",) * (8 - len(r)) for r in rows])
+    # ---- figure
+    fig, axs = plt.subplots(2, 2, figsize=(12.6, 9.0))
+    a = axs[0, 0]
+    for (lab, _), col, ls in zip(cases, [INK2, C2, C1, C3, C4], ["--", "-", "-", "-", "-"]):
+        p = [r[3] for r in rows if r[0] == "P_1pct_W" and r[1] == lab]
+        a.semilogx(LF_FREQS, p, "o" + ls, color=col, ms=4.5, mec=SURF, mew=1, label=lab)
+    a.set(title="(a) Max power at 1 % THD, 4 ohm", xlabel="Frequency (Hz)", ylabel="Power (W)", ylim=(0, None))
+    a.set_xticks(LF_FREQS, [str(f) for f in LF_FREQS])
+    a.legend(loc="lower right", fontsize=8.5)
+    a = axs[0, 1]
+    for f, col in zip((20, 30, 50), (C2, C1, C3)):
+        for lab, ls in (("linear core", ":"), (f"saturates at {SAT_REF} Hz", "-")):
+            r = [x for x in rows if x[0] == "THD_vs_P" and x[1] == lab and x[2] == f]
+            a.loglog([x[4] for x in r], [x[5] for x in r], ls, color=col, marker="o", ms=3.5,
+                     label=f"{f} Hz" + (", linear core" if ls == ":" else ""))
+    a.axhline(1, color=INK2, lw=1, ls=":")
+    a.set(title=f"(b) THD vs power, core saturating at {SAT_REF} Hz (dotted: linear)", xlabel="Power (W)", ylabel="THD (%)")
+    a.legend(loc="upper left", fontsize=8, ncol=2)
+    a = axs[1, 0]
+    for lm, col in zip((1, 3, 10), (C1, C3, C2)):
+        r = [x for x in rows if x[0] == "dc_imbalance_30Hz_10W" and x[1] == f"LMUL {lm}"]
+        a.plot([x[2] for x in r], [x[4] for x in r], "o-", color=col, ms=5, mec=SURF, mew=1,
+               label=f"core inductance x{lm} ({40*lm} H)")
+        a.plot([x[2] for x in r], [x[5] for x in r], "o--", color=col, ms=3.5, lw=1)
+    a.axhline(lin30[1], color=INK2, lw=1, ls=":")
+    a.text(0.5, lin30[1] * 1.04, "linear core", color=INK2, fontsize=8.5, va="bottom")
+    a.set(title=f"(c) 30 Hz, 10 W: THD (solid) and H2 (dashed) vs DC imbalance", xlabel="Output-tube DC imbalance (mA)",
+          ylabel="%", yscale="log")
+    a.legend(loc="upper left", fontsize=8.5)
+    a = axs[1, 1]
+    for lab, col, d in waves:
+        t = (d[:, 0] - d[0, 0]) * 1e3
+        a.plot(t, d[:, 1] * 1e3, color=col, label=lab)
+    a.set(title="(d) Core MMF at 20 Hz, 15 W, core x3 (= magnetizing current)", xlabel="Time (ms)",
+          ylabel="MMF (mA, half-primary turns)")
+    a.legend(loc="upper right", fontsize=8.5)
+    fig.tight_layout()
+    save(fig, "fig21_opt_saturation.png",
+         f"Saturable OPT core (models/opt_sat.inc), no hysteresis. 'Saturates at f Hz' = 25 W at f reaches the flux limit "
+         f"(assumed). (b)-(d) use {SAT_REF} Hz. Data: docs/data/fig21_opt_saturation.csv")
+    build_sat_cir()
+    for r in rows:
+        if r[0] != "THD_vs_P":
+            print("   ", r)
+    return rows
+
+
 ALL = dict(fig1=fig1, fig2=fig2, fig3=fig3, fig4=fig4, fig5=fig5, fig6=fig6, fig7=fig7,
-           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, fig18=fig18, plot18=plot_fig18, fig19=fig19, fig20=fig20, plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
+           fig8=fig8, fig9=fig9, fig10=fig10, fig11=fig11, fig12=fig12, fig13=fig13, fig14=fig14, fig15=fig15, fig16=fig16, fig17=fig17, fig18=fig18, plot18=plot_fig18, fig19=fig19, fig20=fig20, fig21=fig21, sat=lambda: print("  wrote", os.path.relpath(build_sat_cir(), ROOT)), plot11=plot_fig11, plot12=plot_fig12, stereo=lambda: print("  wrote", os.path.relpath(STEREO, ROOT)) if build_stereo() else None)
 if __name__ == "__main__":
     for k in (sys.argv[1:] or ALL):
         print(k)
