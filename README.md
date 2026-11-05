@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/banner.svg" alt="mc34b-mod" width="100%">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg"><img src="assets/banner.svg" alt="mc34b-mod" width="100%"></picture>
 </p>
 
 # mc34b-mod
