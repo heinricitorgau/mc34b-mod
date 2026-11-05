@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/banner.svg" alt="mc34b-mod" width="100%">
+</p>
+
 # mc34b-mod
 
 > **純模擬專案。** 以 Ming-Da MC34-B 的變壓器規格為假設條件，在 LTspice / ngspice（之後加上 PSUD2）中設計並驗證一台

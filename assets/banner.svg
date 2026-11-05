@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="mc34b-mod">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#1a110a"/>
+      <stop offset="1" stop-color="#3a2412"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
+      <stop offset="0" stop-color="#ffb347" stop-opacity="0.55"/>
+      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
+    </radialGradient>
+  </defs>
+  <rect width="1280" height="320" rx="28" fill="url(#bg)"/>
+  <rect x="1" y="1" width="1278" height="318" rx="27" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
+  <ellipse cx="230" cy="150" rx="120" ry="120" fill="url(#glow)"/>
+  <path d="M168 255 L168 95 Q168 40 230 32 Q292 40 292 95 L292 255 Z" fill="#ffffff" fill-opacity="0.07" stroke="#f3e2c7" stroke-opacity="0.7" stroke-width="3"/>
+  <path d="M224 32 L230 20 L236 32" fill="none" stroke="#f3e2c7" stroke-opacity="0.7" stroke-width="3"/>
+  <rect x="186" y="90" width="22" height="120" rx="3" fill="#8a8f98"/>
+  <rect x="252" y="90" width="22" height="120" rx="3" fill="#8a8f98"/>
+  <line x1="214" y1="96" x2="246" y2="96" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="106" x2="246" y2="106" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="116" x2="246" y2="116" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="126" x2="246" y2="126" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="136" x2="246" y2="136" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="146" x2="246" y2="146" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="156" x2="246" y2="156" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="166" x2="246" y2="166" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="176" x2="246" y2="176" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="186" x2="246" y2="186" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <line x1="214" y1="196" x2="246" y2="196" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
+  <rect x="225" y="92" width="10" height="116" rx="5" fill="#ffb347"/>
+  <rect x="228" y="92" width="4" height="116" rx="2" fill="#fff3d6"/>
+  <rect x="160" y="252" width="140" height="34" rx="8" fill="#2a1c12" stroke="#6b4a2e" stroke-width="2"/>
+  <rect x="183" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
+  <rect x="205" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
+  <rect x="227" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
+  <rect x="249" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
+  <rect x="271" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
+  <polyline points="320.0,160.0 322.0,164.2 324.0,168.3 326.0,172.4 328.0,176.4 330.0,180.2 332.0,183.9 334.0,187.3 336.0,190.6 338.0,193.6 340.0,196.3 342.0,198.7 344.0,200.8 346.0,202.6 348.0,204.0 350.0,205.0 352.0,205.7 354.0,206.0 356.0,205.9 358.0,205.4 360.0,204.6 362.0,203.4 364.0,201.8 366.0,199.9 368.0,197.7 370.0,195.1 372.0,192.3 374.0,189.2 376.0,185.8 378.0,182.3 380.0,178.5 382.0,174.6 384.0,170.6 386.0,166.5 388.0,162.3 390.0,158.2 392.0,154.0 394.0,149.9 396.0,145.8 398.0,141.9 400.0,138.2 402.0,134.6 404.0,131.2 406.0,128.1 408.0,125.2 410.0,122.6 412.0,120.3 414.0,118.4 416.0,116.8 418.0,115.5 420.0,114.6 422.0,114.1 424.0,114.0 426.0,114.3 428.0,114.9 430.0,115.9 432.0,117.3 434.0,119.0 436.0,121.0 438.0,123.4 440.0,126.1 442.0,129.1 444.0,132.3 446.0,135.7 448.0,139.4" fill="none" stroke="#ffb347" stroke-width="3" stroke-linecap="round" stroke-opacity="0.85"/>
+  <text x="470" y="150" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#ffffff" letter-spacing="-1">mc34b-mod</text>
+  <rect x="470" y="172" width="96" height="5" rx="2.5" fill="#ffb347"/>
+  <text x="470" y="222" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="27" fill="#ffffff" fill-opacity="0.88">6P3S-E push-pull ultralinear stereo tube amplifier</text>
+  <text x="470" y="262" font-family="'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace" font-size="19" fill="#ffb347" fill-opacity="0.9">simulation only · LTspice / ngspice · ELAC ELT 10 load</text>
+</svg>
