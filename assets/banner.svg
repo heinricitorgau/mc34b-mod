@@ -1,43 +1,34 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="mc34b-mod">
-  <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0" stop-color="#1a110a"/>
-      <stop offset="1" stop-color="#3a2412"/>
-    </linearGradient>
-    <radialGradient id="glow" cx="0.5" cy="0.5" r="0.5">
-      <stop offset="0" stop-color="#ffb347" stop-opacity="0.55"/>
-      <stop offset="1" stop-color="#ffb347" stop-opacity="0"/>
-    </radialGradient>
-  </defs>
-  <rect width="1280" height="320" rx="28" fill="url(#bg)"/>
-  <rect x="1" y="1" width="1278" height="318" rx="27" fill="none" stroke="#ffffff" stroke-opacity="0.08" stroke-width="2"/>
-  <ellipse cx="230" cy="150" rx="120" ry="120" fill="url(#glow)"/>
-  <path d="M168 255 L168 95 Q168 40 230 32 Q292 40 292 95 L292 255 Z" fill="#ffffff" fill-opacity="0.07" stroke="#f3e2c7" stroke-opacity="0.7" stroke-width="3"/>
-  <path d="M224 32 L230 20 L236 32" fill="none" stroke="#f3e2c7" stroke-opacity="0.7" stroke-width="3"/>
-  <rect x="186" y="90" width="22" height="120" rx="3" fill="#8a8f98"/>
-  <rect x="252" y="90" width="22" height="120" rx="3" fill="#8a8f98"/>
-  <line x1="214" y1="96" x2="246" y2="96" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="106" x2="246" y2="106" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="116" x2="246" y2="116" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="126" x2="246" y2="126" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="136" x2="246" y2="136" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="146" x2="246" y2="146" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="156" x2="246" y2="156" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="166" x2="246" y2="166" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="176" x2="246" y2="176" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="186" x2="246" y2="186" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <line x1="214" y1="196" x2="246" y2="196" stroke="#c7ccd4" stroke-width="1.4" stroke-opacity="0.7"/>
-  <rect x="225" y="92" width="10" height="116" rx="5" fill="#ffb347"/>
-  <rect x="228" y="92" width="4" height="116" rx="2" fill="#fff3d6"/>
-  <rect x="160" y="252" width="140" height="34" rx="8" fill="#2a1c12" stroke="#6b4a2e" stroke-width="2"/>
-  <rect x="183" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
-  <rect x="205" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
-  <rect x="227" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
-  <rect x="249" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
-  <rect x="271" y="286" width="6" height="14" rx="2" fill="#c9a66b"/>
-  <polyline points="320.0,160.0 322.0,164.2 324.0,168.3 326.0,172.4 328.0,176.4 330.0,180.2 332.0,183.9 334.0,187.3 336.0,190.6 338.0,193.6 340.0,196.3 342.0,198.7 344.0,200.8 346.0,202.6 348.0,204.0 350.0,205.0 352.0,205.7 354.0,206.0 356.0,205.9 358.0,205.4 360.0,204.6 362.0,203.4 364.0,201.8 366.0,199.9 368.0,197.7 370.0,195.1 372.0,192.3 374.0,189.2 376.0,185.8 378.0,182.3 380.0,178.5 382.0,174.6 384.0,170.6 386.0,166.5 388.0,162.3 390.0,158.2 392.0,154.0 394.0,149.9 396.0,145.8 398.0,141.9 400.0,138.2 402.0,134.6 404.0,131.2 406.0,128.1 408.0,125.2 410.0,122.6 412.0,120.3 414.0,118.4 416.0,116.8 418.0,115.5 420.0,114.6 422.0,114.1 424.0,114.0 426.0,114.3 428.0,114.9 430.0,115.9 432.0,117.3 434.0,119.0 436.0,121.0 438.0,123.4 440.0,126.1 442.0,129.1 444.0,132.3 446.0,135.7 448.0,139.4" fill="none" stroke="#ffb347" stroke-width="3" stroke-linecap="round" stroke-opacity="0.85"/>
-  <text x="470" y="150" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="64" font-weight="700" fill="#ffffff" letter-spacing="-1">mc34b-mod</text>
-  <rect x="470" y="172" width="96" height="5" rx="2.5" fill="#ffb347"/>
-  <text x="470" y="222" font-family="'Segoe UI', 'Helvetica Neue', Helvetica, Arial, sans-serif" font-size="27" fill="#ffffff" fill-opacity="0.88">6P3S-E push-pull ultralinear stereo tube amplifier</text>
-  <text x="470" y="262" font-family="'Cascadia Code', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace" font-size="19" fill="#ffb347" fill-opacity="0.9">simulation only · LTspice / ngspice · ELAC ELT 10 load</text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 320" width="1280" height="320" role="img" aria-label="mc34b-mod: estimated speaker impedance">
+  <rect width="1280" height="320" fill="#c4cbd2"/>
+  <rect x="0.5" y="0.5" width="1279" height="319" fill="none" stroke="#a1a9af"/>
+    <text x="56" y="104" font-family="'Hanken Grotesk', 'Helvetica Neue', Arial, sans-serif" font-size="50" font-weight="600" letter-spacing="-1" fill="#060e15">mc34b-mod</text>
+  <rect x="56" y="122" width="504" height="2" fill="#2b343b"/>
+  <text x="56" y="166" font-family="'Newsreader', Georgia, 'Times New Roman', serif" font-size="23" fill="#182027">A 6P3S-E push-pull ultralinear stereo</text>
+  <text x="56" y="198" font-family="'Newsreader', Georgia, 'Times New Roman', serif" font-size="23" fill="#182027">tube amplifier, designed in simulation only.</text>
+  <text x="56" y="260" font-family="'Newsreader', Georgia, 'Times New Roman', serif" font-size="17" font-weight="500" fill="#3b434b">LTspice and ngspice, about 25 W at 1 % THD</text>
+  <rect x="640" y="36" width="596" height="248" fill="#e5eaef"/>
+  <rect x="640" y="36" width="596" height="2" fill="#060e15"/>
+  <text x="660" y="66" font-family="'Newsreader', Georgia, 'Times New Roman', serif" font-size="15" font-weight="500" fill="#3b434b">Estimated ELAC ELT 10 impedance, the load the amplifier is tested into</text>
+  <line x1="704" y1="244.0" x2="1208" y2="244.0" stroke="#a1a9af" stroke-width="1"/>
+  <text x="694" y="248.0" text-anchor="end" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">0 Ω</text>
+  <line x1="704" y1="205.0" x2="1208" y2="205.0" stroke="#a1a9af" stroke-width="1"/>
+  <text x="694" y="209.0" text-anchor="end" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">4 Ω</text>
+  <line x1="704" y1="166.0" x2="1208" y2="166.0" stroke="#a1a9af" stroke-width="1"/>
+  <text x="694" y="170.0" text-anchor="end" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">8 Ω</text>
+  <line x1="704" y1="127.0" x2="1208" y2="127.0" stroke="#a1a9af" stroke-width="1"/>
+  <text x="694" y="131.0" text-anchor="end" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">12 Ω</text>
+  <line x1="704" y1="88.0" x2="1208" y2="88.0" stroke="#a1a9af" stroke-width="1"/>
+  <text x="694" y="92.0" text-anchor="end" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">16 Ω</text>
+  <line x1="704.0" y1="244" x2="704.0" y2="249" stroke="#2b343b" stroke-width="1"/>
+  <text x="704.0" y="264" text-anchor="middle" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">10 Hz</text>
+  <line x1="843.9" y1="244" x2="843.9" y2="249" stroke="#2b343b" stroke-width="1"/>
+  <text x="843.9" y="264" text-anchor="middle" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">100</text>
+  <line x1="983.8" y1="244" x2="983.8" y2="249" stroke="#2b343b" stroke-width="1"/>
+  <text x="983.8" y="264" text-anchor="middle" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">1k</text>
+  <line x1="1123.8" y1="244" x2="1123.8" y2="249" stroke="#2b343b" stroke-width="1"/>
+  <text x="1123.8" y="264" text-anchor="middle" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#3b434b">10k</text>
+  <line x1="704" y1="244" x2="1208" y2="244" stroke="#2b343b" stroke-width="1"/>
+  <polyline points="704.0,206.5 705.4,206.2 706.8,205.9 708.2,205.5 709.6,205.2 711.0,204.8 712.4,204.4 713.8,203.9 715.2,203.4 716.6,202.9 718.0,202.3 719.4,201.7 720.8,201.0 722.2,200.3 723.6,199.4 725.0,198.5 726.4,197.5 727.8,196.4 729.2,195.2 730.6,193.8 732.0,192.3 733.4,190.6 734.8,188.6 736.2,186.4 737.6,183.9 739.0,181.0 740.4,177.7 741.8,173.8 743.2,169.3 744.6,164.1 746.0,158.0 747.4,150.8 748.8,142.7 750.2,133.7 751.6,124.4 753.0,116.0 754.4,110.4 755.8,109.6 757.2,114.1 758.6,122.8 760.0,133.6 761.4,144.5 762.8,154.5 764.2,163.3 765.6,170.7 767.0,177.0 768.4,182.2 769.8,186.6 771.2,190.2 772.6,193.2 774.0,195.8 775.4,197.9 776.8,199.6 778.2,201.1 779.6,202.2 781.0,203.2 782.4,203.9 783.8,204.5 785.2,204.8 786.6,205.1 788.0,205.1 789.4,205.1 790.8,204.9 792.2,204.5 793.6,204.0 795.0,203.3 796.4,202.5 797.8,201.5 799.2,200.3 800.6,198.8 802.0,197.1 803.4,195.1 804.8,192.8 806.2,190.1 807.6,186.8 809.0,183.0 810.4,178.5 811.8,173.1 813.2,166.7 814.6,159.1 816.0,149.9 817.4,139.2 818.8,126.9 820.2,113.7 821.6,101.4 823.0,92.7 824.4,90.4 825.8,95.3 827.2,105.4 828.6,117.5 830.0,129.6 831.4,140.5 832.8,150.0 834.2,158.0 835.6,164.8 837.0,170.5 838.4,175.4 839.8,179.6 841.2,183.2 842.6,186.2 844.0,188.9 845.4,191.3 846.8,193.3 848.2,195.1 849.6,196.7 851.0,198.2 852.4,199.5 853.8,200.6 855.2,201.6 856.6,202.6 858.0,203.4 859.4,204.2 860.8,204.9 862.2,205.5 863.6,206.1 865.0,206.6 866.4,207.1 867.8,207.5 869.2,207.9 870.6,208.3 872.0,208.6 873.4,208.9 874.8,209.2 876.2,209.4 877.6,209.7 879.0,209.9 880.4,210.1 881.8,210.3 883.2,210.4 884.6,210.6 886.0,210.7 887.4,210.8 888.8,210.9 890.2,211.0 891.6,211.1 893.0,211.1 894.4,211.2 895.8,211.2 897.2,211.2 898.6,211.2 900.0,211.3 901.4,211.3 902.8,211.2 904.2,211.2 905.6,211.2 907.0,211.1 908.4,211.1 909.8,211.0 911.2,211.0 912.6,210.9 914.0,210.8 915.4,210.7 916.8,210.6 918.2,210.5 919.6,210.3 921.0,210.2 922.4,210.1 923.8,209.9 925.2,209.7 926.6,209.5 928.0,209.3 929.4,209.1 930.8,208.9 932.2,208.7 933.6,208.4 935.0,208.2 936.4,207.9 937.8,207.6 939.2,207.3 940.6,207.0 942.0,206.7 943.4,206.3 944.8,205.9 946.2,205.6 947.6,205.2 949.0,204.7 950.4,204.3 951.8,203.8 953.2,203.3 954.6,202.8 956.0,202.3 957.4,201.7 958.8,201.1 960.2,200.5 961.6,199.9 963.0,199.2 964.4,198.5 965.8,197.7 967.2,197.0 968.6,196.2 970.0,195.3 971.4,194.4 972.8,193.5 974.2,192.5 975.6,191.4 977.0,190.4 978.4,189.2 979.8,188.0 981.2,186.8 982.6,185.4 984.0,184.0 985.4,182.6 986.8,181.1 988.2,179.5 989.6,177.8 991.0,176.1 992.4,174.3 993.8,172.5 995.2,170.7 996.6,168.9 998.0,167.1 999.4,165.3 1000.8,163.5 1002.2,161.8 1003.6,160.2 1005.0,158.6 1006.4,157.0 1007.8,155.4 1009.2,153.7 1010.6,152.1 1012.0,150.3 1013.4,148.6 1014.8,146.8 1016.2,144.9 1017.6,143.1 1019.0,141.3 1020.4,139.5 1021.8,137.9 1023.2,136.3 1024.6,134.9 1026.0,133.8 1027.4,132.8 1028.8,132.1 1030.2,131.8 1031.6,131.7 1033.0,132.1 1034.4,132.7 1035.8,133.7 1037.2,135.1 1038.6,136.7 1040.0,138.7 1041.4,140.9 1042.8,143.3 1044.2,145.9 1045.6,148.6 1047.0,151.5 1048.4,154.5 1049.8,157.5 1051.2,160.5 1052.6,163.6 1054.0,166.7 1055.4,169.7 1056.8,172.7 1058.2,175.7 1059.6,178.6 1061.0,181.4 1062.4,184.2 1063.8,186.9 1065.2,189.4 1066.6,191.7 1068.0,193.8 1069.4,195.6 1070.8,196.9 1072.2,197.5 1073.6,197.4 1075.0,196.5 1076.4,194.8 1077.8,192.5 1079.2,190.0 1080.6,187.6 1082.0,185.8 1083.4,184.6 1084.8,184.1 1086.2,184.2 1087.6,184.8 1089.0,185.7 1090.4,186.9 1091.8,188.1 1093.2,189.4 1094.6,190.7 1096.0,192.0 1097.4,193.2 1098.8,194.3 1100.2,195.5 1101.6,196.5 1103.0,197.5 1104.4,198.4 1105.8,199.2 1107.2,200.0 1108.6,200.7 1110.0,201.3 1111.4,201.9 1112.8,202.4 1114.2,202.9 1115.6,203.3 1117.0,203.7 1118.4,204.0 1119.8,204.2 1121.2,204.4 1122.6,204.6 1124.0,204.7 1125.4,204.8 1126.8,204.8 1128.2,204.8 1129.6,204.7 1131.0,204.6 1132.4,204.4 1133.8,204.2 1135.2,203.9 1136.6,203.7 1138.0,203.3 1139.4,203.0 1140.8,202.6 1142.2,202.1 1143.6,201.6 1145.0,201.1 1146.4,200.6 1147.8,200.0 1149.2,199.3 1150.6,198.7 1152.0,198.0 1153.4,197.2 1154.8,196.5 1156.2,195.7 1157.6,194.8 1159.0,194.0 1160.4,193.0 1161.8,192.1 1163.2,191.1 1164.6,190.1 1166.0,189.1 1167.4,188.0 1168.8,186.9 1170.2,185.7 1171.6,184.5 1173.0,183.3 1174.4,182.0 1175.8,180.7 1177.2,179.4 1178.6,178.0 1180.0,176.6 1181.4,175.2 1182.8,173.7 1184.2,172.1 1185.6,170.6 1187.0,168.9 1188.4,167.3 1189.8,165.6 1191.2,163.9 1192.6,162.1 1194.0,160.2 1195.4,158.4 1196.8,156.4 1198.2,154.5 1199.6,152.4 1201.0,150.4 1202.4,148.3 1203.8,146.1 1205.2,143.9 1206.6,141.6 1208.0,139.2" fill="none" stroke="#970d63" stroke-width="2" stroke-linejoin="round"/>
+  <circle cx="900.0" cy="211.3" r="3.5" fill="#970d63"/>
+  <text x="910.0" y="203.3" text-anchor="start" font-family="'IBM Plex Mono', Consolas, 'Courier New', monospace" font-size="12" fill="#060e15">3.36 Ω at 252 Hz</text>
 </svg>
