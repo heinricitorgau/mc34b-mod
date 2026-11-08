@@ -1,0 +1,32 @@
+name: 模擬 / 功能建議 / Simulation request
+description: 新的分析、模型改進、文件補充
+title: "[Sim] "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本專案只收模擬相關內容，不收零件採購、佈線、機箱、調機等實機製作內容。
+  - type: textarea
+    id: goal
+    attributes:
+      label: 想模擬或改進什麼？
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: 動機
+      description: 想回答的問題、目前結果的不足之處
+  - type: textarea
+    id: how
+    attributes:
+      label: 建議做法
+      description: 分析類型、參數範圍、參考資料（datasheet、論文）
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: 確認
+      options:
+        - label: 這個建議不包含實機製作內容
+          required: true

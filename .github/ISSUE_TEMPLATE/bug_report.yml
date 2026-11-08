@@ -1,0 +1,46 @@
+name: 模擬錯誤回報 / Bug report
+description: 腳本執行失敗、模擬結果與文件不符、模型或網表錯誤
+title: "[Bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        本專案為純模擬專案，請勿提出實機製作相關問題。
+  - type: textarea
+    id: what
+    attributes:
+      label: 問題描述
+      description: 發生了什麼？預期應該是什麼？
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: 重現步驟
+      description: 執行的指令、修改過的 `.param` 或檔案
+      placeholder: |
+        python tools/make_figures.py fig4
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: 錯誤輸出 / 相關數據
+      description: 終端機輸出、CSV 片段或圖表截圖
+      render: text
+  - type: input
+    id: ngspice
+    attributes:
+      label: ngspice 版本
+      placeholder: "ngspice 36"
+  - type: input
+    id: env
+    attributes:
+      label: 作業系統與 Python 版本
+      placeholder: "Windows 11, Python 3.12"
+  - type: input
+    id: commit
+    attributes:
+      label: Commit
+      description: "`git rev-parse --short HEAD`"

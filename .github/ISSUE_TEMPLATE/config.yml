@@ -1,0 +1,5 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 安全問題 / Security vulnerability
+    url: https://github.com/heinricitorgau/mc34b-mod/security/advisories/new
+    about: 請私下回報，不要開公開 issue
