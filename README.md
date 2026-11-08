@@ -1,697 +1,710 @@
+<p align="center">
+  <picture><source media="(prefers-color-scheme: dark)" srcset="assets/banner-dark.svg"><img src="assets/banner.svg" alt="mc34b-mod" width="100%"></picture>
+</p>
+
 # mc34b-mod
 
-> **純模擬專案。** 以 Ming-Da MC34-B 的變壓器規格為假設條件，在 LTspice / ngspice（之後加上 PSUD2）中設計並驗證一台
-> **6P3S-E 推挽超線性 (UL)、固定偏壓** 的立體聲真空管擴大機，負載為 **ELAC ELT 10**（4 Ω / 91 dB）。
-> 本 repo 不包含任何實機製作內容。
+**English** · [繁體中文](README.zh-TW.md)
 
-| 項目 | 狀態 |
+> **Simulation only.** Taking the transformer specifications of the Ming-Da MC34-B as given, this repo designs and verifies, in LTspice / ngspice (PSUD2 to follow), a
+> **6P3S-E push-pull ultralinear (UL), fixed-bias** stereo tube amplifier driving an **ELAC ELT 10** (4 Ω / 91 dB).
+> Nothing in this repo describes a physical build.
+
+| Item | Status |
 |---|---|
-| SPICE 模型 | ✅ v4（6N1 / 6N2 擬合；6P3S-E、6P3P 各自依 datasheet 曲線多點擬合，§4.9） |
-| 單聲道 LTspice 網表 | ✅ v1.5（理想 400 V 電源，含高頻補償）；圖形化電路圖 `amp_channel_v1.asc` |
-| 電源模型（PSUD2 / SPICE） | ✅ psu_v1：SPICE 版完成；PSUD2 輸入表見 `simulations/psud2/`，`.psu` 檔待存 |
-| 立體聲 + 電源模擬 | ✅ `amp_stereo_psu_v1.cir` |
-| 模擬圖表 | ✅ 22 張（`docs/figures/`），原始數據在 `docs/data/` |
-| 方波 / 迴路穩定度 | ✅ 見 §4.4 |
-| B+ / OPT 敏感度 | ✅ 見 §4.3（發現高頻共振，v1.3 起加入補償） |
-| ELT 10 喇叭負載（估計模型） | ✅ 見 §4.5（v1.4 依此重新選擇補償） |
-| 管子離散敏感度 | ✅ 見 §4.6 |
-| 偏壓電源模型 | ✅ 見 §4.7 |
-| OPT 繞組分布電容、純電容負載 | ✅ 見 §4.8（v1.5 依此重新選擇補償） |
-| OPT 鐵心飽和 | ✅ 見 §4.10（另一個 OPT 模型 `opt_sat.inc`，基準網表仍用線性鐵心） |
-| 功率管 datasheet 多點擬合 | ✅ 見 §4.9（`tools/fit_tubes.py`） |
+| SPICE models | ✅ v4 (6N1 / 6N2 fitted; 6P3S-E and 6P3P each fitted to multiple points of their datasheet curves, §4.9) |
+| Mono LTspice netlist | ✅ v1.5 (ideal 400 V supply, with high-frequency compensation); schematic `amp_channel_v1.asc` |
+| Power supply model (PSUD2 / SPICE) | ✅ psu_v1: SPICE version done; PSUD2 input table in `simulations/psud2/`, `.psu` file not yet saved |
+| Stereo + power supply simulation | ✅ `amp_stereo_psu_v1.cir` |
+| Simulation figures | ✅ 22 figures (`docs/figures/`), raw data in `docs/data/` |
+| Square wave / loop stability | ✅ see §4.4 |
+| B+ / OPT sensitivity | ✅ see §4.3 (found a high-frequency resonance; compensation added from v1.3) |
+| ELT 10 speaker load (estimated model) | ✅ see §4.5 (v1.4 re-chose the compensation from it) |
+| Tube spread sensitivity | ✅ see §4.6 |
+| Bias supply model | ✅ see §4.7 |
+| OPT winding capacitance, purely capacitive load | ✅ see §4.8 (v1.5 re-chose the compensation from it) |
+| OPT core saturation | ✅ see §4.10 (a separate OPT model, `opt_sat.inc`; the baseline netlist still uses a linear core) |
+| Power tube multi-point datasheet fit | ✅ see §4.9 (`tools/fit_tubes.py`) |
 
 ---
 
-## 1. 模擬目標
+## 1. Simulation goals
 
-- **驗證推挽架構能否推動 4 Ω 負載**：ELT 10 是二音路、雙 6.5" 低音並聯的 4 Ω 負載，需要低輸出阻抗與足夠電流，因此模擬推挽而不是單端。
-- **以 MC34-B 的變壓器規格作為邊界條件**：B+ 與 OPT 參數採用典型值假設（見 §3），作為模擬輸入。
-- **每次電路修改都可重現**：模型、網表、圖表產生腳本都放在 repo 中，以 Git 追蹤。
+- **Check that a push-pull stage can drive a 4 Ω load.** The ELT 10 is a two-way speaker with two 6.5" woofers in parallel, a 4 Ω load that needs low output impedance and plenty of current, so the design simulates push-pull rather than single-ended.
+- **Use the MC34-B transformer specifications as boundary conditions.** B+ and OPT parameters are typical assumed values (see §3) used as simulation inputs.
+- **Make every circuit change reproducible.** Models, netlists and the figure scripts all live in the repo and are tracked in Git.
 
-## 2. 電路架構
+## 2. Circuit topology
 
 ```
-            ┌──────────────── 全域負迴授 RFB 2.7k ∥ 100pF（4Ω 端 → V1 陰極）────────────────┐
+            ┌──────────── global NFB  RFB 2.7k ∥ 100pF (4Ω tap → V1 cathode) ────────────┐
             │                                                                              │
- IN ──► V1 6N2(½) ──直耦──► V2 6N1 長尾對 ──0.22µF──► V3/V4 6P3S-E ×2 ──► OPT 6k:4Ω ──► 4 Ω
-        電壓放大              倒相 / 驅動              推挽 UL・固定偏壓        (UL 抽頭)
+ IN ──► V1 6N2(½) ─direct─► V2 6N1 long-tail pair ─0.22µF─► V3/V4 6P3S-E ×2 ──► OPT 6k:4Ω ──► 4 Ω
+        voltage amp          phase splitter / driver        push-pull UL, fixed bias   (UL taps)
 ```
 
-- **V1 – 6N2（取半邊）**：高 μ 電壓放大，屏極直接耦合到長尾對柵極（Mullard 5-20 式），少一顆耦合電容，低頻相位裕度較好。
-- **V2 – 6N1 長尾對**：低內阻、大電流，提供 6P3S-E 柵極約 ±40 V 的驅動擺幅。
-- **V3/V4 – 6L6 家族推挽**：UL 接法，AB1 類，固定偏壓。
+- **V1 – 6N2 (one half)**: high-μ voltage amplifier. Its plate is direct-coupled to the long-tail pair's grid (Mullard 5-20 style), which saves a coupling capacitor and gives better low-frequency phase margin.
+- **V2 – 6N1 long-tail pair**: low internal resistance and high current, giving about ±40 V of drive swing at the 6P3S-E grids.
+- **V3/V4 – 6L6-family push-pull**: UL connection, class AB1, fixed bias.
 
-### 2.1 使用的管子模型
+### 2.1 Tube models used
 
-| 位置 | 模型（`models/tubes_amp.inc`） | 功能 | 備註 |
+| Position | Model (`models/tubes_amp.inc`) | Role | Notes |
 |---|---|---|---|
-| V1 | `6N2` | 輸入電壓放大 | 依 6N2P datasheet 典型點擬合 |
-| V2 | `6N1` ×2 單元 | 長尾對倒相 / 驅動 | 依 6N1P datasheet 典型點擬合 |
-| V3, V4 | `6P3S-E`（另有 `6P3P`） | 推挽功率輸出 | Koren 束射管形式加屏壓斜率項，依 datasheet 曲線多點擬合（§4.9）；可用 `KG1` 模擬廠牌 / 個體差異 |
+| V1 | `6N2` | Input voltage amplifier | Fitted to the 6N2P datasheet typical point |
+| V2 | `6N1` ×2 sections | Long-tail phase splitter / driver | Fitted to the 6N1P datasheet typical point |
+| V3, V4 | `6P3S-E` (also `6P3P`) | Push-pull power output | Koren beam-tetrode form plus a plate-voltage slope term, fitted to multiple points of the datasheet curves (§4.9); `KG1` can model brand / sample spread |
 
-## 3. 模擬假設條件
+## 3. Simulation assumptions
 
-| 項目 | 假設值 | 網表中的參數 |
+| Item | Assumed value | Netlist parameter |
 |---|---|---|
-| B+（單聲道網表） | 400 V 理想電源，串 15 Ω | `VBP`、`RBP` |
-| B+（立體聲網表） | `psu_v1`：HT 315.5 Vrms、內阻 40 Ω、矽橋、220 µF–47 Ω–470 µF | `VSEC`、`RSEC`、`CIN`、`RFIL`、`COUT` |
-| 市電 | 110 V / 60 Hz（`MAINS` = 0.9–1.1） | `MAINS` |
-| 固定偏壓（單聲道網表） | 理想電壓源 −42.9 V（調到每管 34.4 mA） | `VB`、`DVB` |
-| 固定偏壓（立體聲網表） | 偏壓繞組 45 Vrms → 半波 → 47 µF–1 kΩ–100 µF → 每管一組 15 k / 25 k 可變電阻 / 56 k 分壓（§4.7） | `VBIASW`、`WA`、`WB` |
-| OPT 初級阻抗 | 6 kΩ p-p | 由圈數比決定（`LH`、次級電感） |
-| OPT 初級電感 | 40 H（半邊 10 H） | `LH=10` |
-| UL 抽頭 | 43 % | `TU=0.43` |
-| 耦合係數 | 0.9995（另測 0.998） | `KC` |
-| OPT 繞組分布電容 | 未知；網表預設不加（1 pF），§4.8 掃描屏對屏 0–1 nF、初次級 0–3 nF，典型估計 300 pF / 1 nF | `CPP`、`CPS` |
-| 負載 | 4 Ω 純電阻（另有 ELT 10 估計模型，§4.5） | `RL`、`SPK` |
+| B+ (mono netlist) | Ideal 400 V source with 15 Ω in series | `VBP`, `RBP` |
+| B+ (stereo netlist) | `psu_v1`: HT 315.5 Vrms, 40 Ω source resistance, silicon bridge, 220 µF–47 Ω–470 µF | `VSEC`, `RSEC`, `CIN`, `RFIL`, `COUT` |
+| Mains | 110 V / 60 Hz (`MAINS` = 0.9–1.1) | `MAINS` |
+| Fixed bias (mono netlist) | Ideal −42.9 V source (set for 34.4 mA per tube) | `VB`, `DVB` |
+| Fixed bias (stereo netlist) | 45 Vrms bias winding → half-wave → 47 µF–1 kΩ–100 µF → per tube a 15 k / 25 k pot / 56 k divider (§4.7) | `VBIASW`, `WA`, `WB` |
+| OPT primary impedance | 6 kΩ plate-to-plate | Set by the turns ratio (`LH`, secondary inductance) |
+| OPT primary inductance | 40 H (10 H per half) | `LH=10` |
+| UL tap | 43 % | `TU=0.43` |
+| Coupling coefficient | 0.9995 (0.998 also tested) | `KC` |
+| OPT winding capacitance | Unknown; left out of the netlist by default (1 pF). §4.8 sweeps plate-to-plate 0–1 nF and primary-to-secondary 0–3 nF; typical estimates 300 pF / 1 nF | `CPP`, `CPS` |
+| Load | 4 Ω resistor (plus an estimated ELT 10 model, §4.5) | `RL`, `SPK` |
 
-## 4. 設計參數（模擬基準 v1.5）
+## 4. Design values (simulation baseline v1.5)
 
-| 級 | 元件 | 值 | 模擬工作點 |
+| Stage | Part | Value | Simulated operating point |
 |---|---|---|---|
-| 電源 | RD1 / CD1 | 1 k / 47 µF | B2 ≈ 388 V |
+| Supply | RD1 / CD1 | 1 k / 47 µF | B2 ≈ 388 V |
 | | RD2 / CD2 | 47 k / 47 µF | B3 ≈ 358 V |
-| V1 6N2 | RA1 | 330 k | Va ≈ 141 V（對陰極），Ia 0.65 mA |
-| | RK1（不旁路） | 100 Ω | 迴授注入點 |
-| | 階梯網路 RST + CST | 3.3 k + 470 pF（6N2 屏極對地） | 降低約 1 MHz 的迴路增益（v1.3 起） |
-| | RK2 ∥ CK2 | 2.7 k ∥ 220 µF | Vgk ≈ −0.9 V（RFB 在直流上與 RK2 並聯，已計入） |
-| V2 6N1 LTP | RT（尾電阻） | 15 k | Vk ≈ 144 V，總電流 9.8 mA |
-| | RLA / RLB | 18 k / 18.82 k | Va ≈ 301 V（屏陰 156 V），每邊 4.9 mA，Vgk −2.5 V |
-| | 耦合電容 | 0.22 µF | |
-| V3/V4 | 偏壓 VB | −42.9 V | Ik ≈ 34.4 mA，Pa ≈ 13.7 W |
-| | 柵漏 / 柵阻 | 100 k / 1.5 k | |
-| | 簾柵電阻 | 1 k（UL 抽頭 → G2） | |
-| | RKO | 1 Ω | 模擬中用來讀陰極電流：V(ka) 的數值 = 電流 (A) |
-| NFB | RFB ∥ CFB | 2.7 k ∥ 100 pF（v1.1–v1.3 為 1 nF、v1.4 不加） | 約 20 dB 迴授 |
-| 輸出 | Zobel RZ + CZ | 10 Ω + 1 µF（並聯在輸出端） | 與階梯網路一起壓制 MHz 頻段的迴路共振 |
-| | 屏對屏 RC（RPZ + CPZ） | 4.7 kΩ + 2.2 nF（V3 屏極 ↔ V4 屏極） | 壓制 OPT 繞組電容造成的高頻共振（v1.5，§4.8） |
+| V1 6N2 | RA1 | 330 k | Va ≈ 141 V (to cathode), Ia 0.65 mA |
+| | RK1 (unbypassed) | 100 Ω | Feedback injection point |
+| | Step network RST + CST | 3.3 k + 470 pF (6N2 plate to ground) | Lowers loop gain around 1 MHz (from v1.3) |
+| | RK2 ∥ CK2 | 2.7 k ∥ 220 µF | Vgk ≈ −0.9 V (RFB is in parallel with RK2 at DC, already included) |
+| V2 6N1 LTP | RT (tail) | 15 k | Vk ≈ 144 V, 9.8 mA total |
+| | RLA / RLB | 18 k / 18.82 k | Va ≈ 301 V (156 V plate to cathode), 4.9 mA per side, Vgk −2.5 V |
+| | Coupling capacitor | 0.22 µF | |
+| V3/V4 | Bias VB | −42.9 V | Ik ≈ 34.4 mA, Pa ≈ 13.7 W |
+| | Grid leak / grid stopper | 100 k / 1.5 k | |
+| | Screen resistor | 1 k (UL tap → G2) | |
+| | RKO | 1 Ω | Used to read cathode current in simulation: the value of V(ka) = current (A) |
+| NFB | RFB ∥ CFB | 2.7 k ∥ 100 pF (1 nF in v1.1–v1.3, none in v1.4) | About 20 dB of feedback |
+| Output | Zobel RZ + CZ | 10 Ω + 1 µF (across the output) | Together with the step network, suppresses loop resonance in the MHz range |
+| | Plate-to-plate RC (RPZ + CPZ) | 4.7 kΩ + 2.2 nF (V3 plate ↔ V4 plate) | Suppresses the high-frequency resonance caused by OPT winding capacitance (v1.5, §4.8) |
 
-**模擬結果（v1.5，v4 管子模型）**：增益 24.2 倍、頻寬 7.6 Hz – 32 kHz（10 kHz 處 +0.2 dB，20 kHz 處 −0.5 dB）、阻尼因數 11.6、1 kHz 10 W 時 THD 0.28 %、1 % THD 時約 24 W、全功率靈敏度約 0.41 Vrms。
-（理想 400 V 電源；兩聲道同時滿載、接上電源模型時見 §4.2。失真比先前的數字高約 3 倍，是功率管模型改用 datasheet 多點擬合的結果，而且對截止區的擬合很敏感，見 §4.9。）
+**Simulated results (v1.5, v4 tube models)**: gain 24.2×, bandwidth 7.6 Hz – 32 kHz (+0.2 dB at 10 kHz, −0.5 dB at 20 kHz), damping factor 11.6, THD 0.28 % at 10 W 1 kHz, about 24 W at 1 % THD, full-power sensitivity about 0.41 Vrms.
+(Ideal 400 V supply; for both channels at full load on the supply model see §4.2. Distortion is about 3× higher than the earlier figures; this comes from switching the power tube models to a multi-point datasheet fit and is sensitive to how the cutoff region is fitted, §4.9.)
 
-> **v1.1 修正（2026-11-02）**：v1 表列的前級工作點是在拔掉迴授電阻（開迴路）時量的。接上 RFB 後，它經 OPT 次級在直流上並聯到 6N2 陰極，使偏壓變淺到 −0.7 V。已將 RK2 由 1.5 k 改為 2.7 k，偏壓回到 −0.9 V；增益、頻寬、失真、功率不變。
+> **v1.1 fix (2026-11-02)**: the front-end operating points listed in v1 were measured with the feedback resistor removed (open loop). With RFB connected, it sits in parallel with the 6N2 cathode at DC through the OPT secondary, which made the bias shallower, to −0.7 V. RK2 was changed from 1.5 k to 2.7 k, bringing the bias back to −0.9 V; gain, bandwidth, distortion and power are unchanged.
 >
-> **靜態屏耗為何選約 14 W 而不是 15–17 W**：偏壓固定時，把模擬的 B+ 從 400 V 提高到 420 V，屏耗從 13.6 W 升到 18.2 W（§4.3）；若在 400 V 下就設在約 16 W，依同樣比例 420 V 時約 21.4 W，超過 6P3S-E 的 20.5 W 額定。
+> **Why idle plate dissipation is about 14 W rather than 15–17 W**: with the bias held fixed, raising the simulated B+ from 400 V to 420 V raises plate dissipation from 13.6 W to 18.2 W (§4.3). Setting it to about 16 W at 400 V would, at the same ratio, give about 21.4 W at 420 V, above the 6P3S-E's 20.5 W rating.
 
-### 4.1 模擬圖表
+### 4.1 Simulation figures
 
-所有圖都由 `tools/make_figures.py` 從 `models/tubes_amp.inc` 與 `simulations/ltspice/amp_channel_v1.cir` 自動產生（ngspice），改了電路後重跑即可更新。
+Every figure is generated by `tools/make_figures.py` from `models/tubes_amp.inc` and `simulations/ltspice/amp_channel_v1.cir` (ngspice). Rerun it after changing the circuit to update them.
 
-#### 各級工作點
+#### Operating points per stage
 
-| V1 – 6N2 | V2 – 6N1 長尾對 |
+| V1 – 6N2 | V2 – 6N1 long-tail pair |
 |---|---|
 | ![6N2 plate curves](docs/figures/fig1_6N2_plate.png) | ![6N1 plate curves](docs/figures/fig2_6N1_plate.png) |
-| 330k 負載線，Q 點 141 V / 0.65 mA，偏壓約 −0.9 V。直耦到長尾對，所以屏壓刻意壓低。 | 每邊 156 V / 4.9 mA，偏壓 −2.5 V，離屏耗上限很遠。 |
+| 330k load line, Q point 141 V / 0.65 mA, bias about −0.9 V. It is direct-coupled to the long-tail pair, so the plate voltage is kept deliberately low. | 156 V / 4.9 mA per side, bias −2.5 V, far from the plate dissipation limit. |
 
 ![6P3S-E plate curves](docs/figures/fig3_6P3S-E_plate.png)
 
-V3/V4 – 6P3S-E：靜態點 397 V / 34.4 mA（13.7 W，約額定 67 %，柵極 −42.9 V），B 類負載線 Raa/4 = 1.5 kΩ。
+V3/V4 – 6P3S-E: idle point 397 V / 34.4 mA (13.7 W, about 67 % of rating, grid −42.9 V), class B load line Raa/4 = 1.5 kΩ.
 
-#### 頻率響應與負迴授
+#### Frequency response and negative feedback
 
 ![Frequency response](docs/figures/fig4_freq_response.png)
 
-開迴路約 47 dB；加 2.7 kΩ 迴授後約 28 dB（約 20 dB 迴授）。只有迴授電阻、沒有任何補償時，約 300 kHz 有明顯的峰；v1.1 並聯 1 nF 相位超前電容後消除了這個峰，但約 1 MHz 仍有一個共振（虛線）。v1.4 用 6N2 屏極階梯網路加輸出端 Zobel、不用相位超前電容，頻寬 47 kHz；v1.5 再加屏對屏 RC，頻寬降到 32 kHz，換來對 OPT 繞組電容的穩定度（§4.8）。演進過程見 §4.3、§4.5、§4.8。
+Open loop is about 47 dB; with the 2.7 kΩ feedback resistor it is about 28 dB (about 20 dB of feedback). With only the feedback resistor and no compensation there is a clear peak near 300 kHz. v1.1 removed that peak with a 1 nF phase-lead capacitor in parallel, but a resonance remained near 1 MHz (dashed line). v1.4 uses a step network on the 6N2 plate plus an output Zobel instead of the phase-lead capacitor, with 47 kHz bandwidth; v1.5 adds a plate-to-plate RC, which lowers the bandwidth to 32 kHz in exchange for stability against OPT winding capacitance (§4.8). The progression is in §4.3, §4.5 and §4.8.
 
-#### 失真與輸出功率：固定偏壓 vs 自給偏壓
+#### Distortion and output power: fixed bias vs. cathode bias
 
 ![THD vs power](docs/figures/fig5_thd_vs_power.png)
 
-固定偏壓到約 23 W 前 THD 都在 0.33 % 以下（10 W 約 0.28 %），約 24 W 達到 1 %（削波）；自給偏壓約 9 W 就超過 1 %。這是本設計採用固定偏壓的主要依據。
+With fixed bias, THD stays below 0.33 % up to about 23 W (about 0.28 % at 10 W) and reaches 1 % (clipping) at about 24 W; with cathode (self) bias it passes 1 % at about 9 W. This is the main reason the design uses fixed bias.
 
-#### 波形與驅動餘裕
+#### Waveforms and drive headroom
 
 ![Waveforms](docs/figures/fig6_waveforms.png)
 
-約 19 W 輸出時，兩支功率管柵極擺幅約 −83 ~ −3 V，仍未進入正柵，代表 6N1 長尾對還有驅動餘裕。
+At about 19 W output, the grid swing of both power tubes is about −83 to −3 V and never goes positive, so the 6N1 long-tail pair still has drive headroom.
 
-#### 偏壓掃描
+#### Bias sweep
 
 ![Bias sweep](docs/figures/fig7_bias_sweep.png)
 
-模型中 −42.9 V 對應 34.4 mA；約 −38 V 就會碰到 20 W 屏耗上限。
+In the model, −42.9 V gives 34.4 mA; at about −38 V the tubes hit the 20 W plate dissipation limit.
 
-> ⚠️ 模型限制：§4.1 的圖用理想 400 V 電源；有電源壓降的結果見 §4.2。6P3S-E 模型由 datasheet 曲線擬合，截止區與膝點附近誤差較大（§4.9），OPT 與變壓器參數為假設值。
+> ⚠️ Model limits: the figures in §4.1 use an ideal 400 V supply; results with supply sag are in §4.2. The 6P3S-E model is fitted to the datasheet curves, with larger errors in the cutoff region and near the knee (§4.9), and the OPT and transformer parameters are assumed values.
 
-### 4.2 電源模擬（psu_v1）
+### 4.2 Power supply simulation (psu_v1)
 
-電源電路、PSUD2 輸入表與電源單獨的掃描結果見 [`simulations/psud2/README.md`](simulations/psud2/README.md)。
-這裡是把電源接上兩個完整聲道（`amp_stereo_psu_v1.cir`）後的結果。
+The supply circuit, the PSUD2 input table and sweeps of the supply on its own are in [`simulations/psud2/README.md`](simulations/psud2/README.md).
+This section shows the results with the supply connected to two complete channels (`amp_stereo_psu_v1.cir`).
 
-#### 開機暫態
+#### Power-on transient
 
 ![PSU startup](docs/figures/fig8_psu_startup.png)
 
-B+ 與 B2 約 1 秒到位；B3（6N2 電源）要 5–6 秒，因為 RD2 × CD2 = 2.2 s。開機約 0.2 s 時功率管電流有約 205 mA 的尖峰：B2 上升時經耦合電容把功率管柵極往正推，而偏壓電源要約 1 秒才建立（§4.7）。模型假設管子從 t = 0 就導通，屬於最壞情況。
+B+ and B2 settle in about 1 second; B3 (the 6N2 supply) takes 5–6 seconds, because RD2 × CD2 = 2.2 s. About 0.2 s after power-on the power tube current spikes to about 205 mA: as B2 rises it pushes the power tube grids positive through the coupling capacitors, while the bias supply takes about 1 second to come up (§4.7). The model assumes the tubes conduct from t = 0, which is the worst case.
 
-#### 漣波與哼聲
+#### Ripple and hum
 
 ![Ripple](docs/figures/fig9_psu_ripple.png)
 
-C1 漣波約 4.8 V p-p，經 CRC 後 B+ 剩約 0.23 V p-p。推挽把 B+ 漣波幾乎完全抵消：兩管匹配時喇叭端只剩 0.30 µV rms；一支管子電流少 5 % 時升到 8.6 µV rms，仍比 25 W 低約 121 dB。（只計電源漣波與偏壓漣波造成的哼聲。）
+Ripple on C1 is about 4.8 V p-p, leaving about 0.23 V p-p on B+ after the CRC filter. Push-pull cancels B+ ripple almost completely: with matched tubes only 0.30 µV rms reaches the speaker; with one tube drawing 5 % less current it rises to 8.6 µV rms, still about 121 dB below 25 W. (Only hum from supply ripple and bias ripple is counted.)
 
-#### 失真與壓降
+#### Distortion and sag
 
 ![THD and sag](docs/figures/fig10_psu_thd_sag.png)
 
-兩聲道同時滿載時 B+ 從 400 V 降到約 379 V，1 % THD 的功率從約 24 W 降到約 21 W／聲道；削波前的失真約 0.2–0.5 %，比理想電源略高。
+With both channels at full load, B+ sags from 400 V to about 379 V, and the power at 1 % THD drops from about 24 W to about 21 W per channel; distortion before clipping is about 0.2–0.5 %, slightly higher than with an ideal supply.
 
-#### 市電 ±10 %：偏壓是否跟著變動
+#### Mains ±10 %: does the bias track it?
 
-| 市電 | 偏壓 | B+ | 每管 Ik | 每管 Pa |
+| Mains | Bias | B+ | Ik per tube | Pa per tube |
 |---|---|---|---|---|
-| 99 V | 偏壓電源模型（−39.0 V） | 362 V | 29.6 mA | 10.7 W |
-| 99 V | 固定 −43.0 V | 367 V | 22.2 mA | 8.1 W |
+| 99 V | Bias supply model (−39.0 V) | 362 V | 29.6 mA | 10.7 W |
+| 99 V | Fixed −43.0 V | 367 V | 22.2 mA | 8.1 W |
 | 110 V | −43.0 V | 400 V | 34.4 mA | 13.7 W |
-| 121 V | 偏壓電源模型（−47.2 V） | 438 V | 39.1 mA | 17.0 W |
-| 121 V | 固定 −43.0 V | 431 V | 49.2 mA | **21.0 W** |
+| 121 V | Bias supply model (−47.2 V) | 438 V | 39.1 mA | 17.0 W |
+| 121 V | Fixed −43.0 V | 431 V | 49.2 mA | **21.0 W** |
 
-偏壓由同一顆變壓器的繞組供應（§4.7），會跟著市電一起變大，市電 +10 % 時屏耗只到 17.0 W；若偏壓固定不變，則會到 21.0 W，超過 6P3S-E 的 20.5 W 額定。所以偏壓必須隨市電變動，立體聲網表的偏壓電源模型就是這樣。
+The bias comes from a winding on the same transformer (§4.7), so it grows with the mains: at mains +10 % plate dissipation only reaches 17.0 W. With the bias held fixed it would reach 21.0 W, above the 6P3S-E's 20.5 W rating. So the bias has to follow the mains, which is what the bias supply model in the stereo netlist does.
 
-> **v1.2（2026-11-02）**：取代 v1.1 中「B+ 420 V 時屏耗 18.7 W」的估算：那是理想電源加固定偏壓的結果，現在由上表（真實電源）取代。上表已改用偏壓電源模型與 v4 管子模型重新計算。
+> **v1.2 (2026-11-02)**: replaces the v1.1 estimate of "18.7 W plate dissipation at B+ 420 V". That was an ideal supply with fixed bias and is now superseded by the table above (real supply). The table has been recalculated with the bias supply model and the v4 tube models.
 
-### 4.3 B+ 與 OPT 敏感度
+### 4.3 B+ and OPT sensitivity
 
-單聲道網表（理想 B+）中可調的參數：`VBPLUS`（B+）、`RAA`（OPT 初級阻抗）、`TU`（UL 抽頭）、`LH`（半邊初級電感，總電感 = 4 × LH）、`KC`（耦合係數）。數據都存在 `docs/data/*.csv`。
+Parameters that can be varied in the mono netlist (ideal B+): `VBPLUS` (B+), `RAA` (OPT primary impedance), `TU` (UL tap), `LH` (inductance of half the primary; total = 4 × LH), `KC` (coupling coefficient). All data is in `docs/data/*.csv`.
 
 #### B+ 360–440 V
 
 ![B+ sensitivity](docs/figures/fig11_bplus_sensitivity.png)
 
-| | 偏壓固定 −42.9 V | 偏壓隨 B+ 等比例變動 |
+| | Bias fixed at −42.9 V | Bias scaled with B+ |
 |---|---|---|
-| 靜態屏耗 360 → 440 V | 7.0 → **23.7 W**（約 429 V 起超過 20.5 W） | 10.4 → 17.5 W |
-| 1 % THD 最大功率 | 18.2 → 30.7 W | 18.5 → 30.9 W |
-| 10 W 時 THD | 0.71 → 0.10 % | 0.34 → 0.22 % |
+| Idle plate dissipation, 360 → 440 V | 7.0 → **23.7 W** (above 20.5 W from about 429 V) | 10.4 → 17.5 W |
+| Maximum power at 1 % THD | 18.2 → 30.7 W | 18.5 → 30.9 W |
+| THD at 10 W | 0.71 → 0.10 % | 0.34 → 0.22 % |
 
-最大功率幾乎只由 B+ 決定（每 10 V 約 +1.6 W），與偏壓方式無關；偏壓方式決定的是靜態屏耗是否安全，以及失真：靜態電流越大，交越失真越低（偏壓固定時 B+ 一低，靜態電流掉到 19 mA，10 W 失真升到 0.7 %）。結論與 §4.2 的市電掃描一致：偏壓必須隨 B+ 變動。
+Maximum power is set almost entirely by B+ (about +1.6 W per 10 V), whatever the bias scheme. The bias scheme decides whether idle dissipation is safe, and the distortion: the higher the idle current, the lower the crossover distortion (with fixed bias, a low B+ drops the idle current to 19 mA and distortion at 10 W rises to 0.7 %). The conclusion matches the mains sweep in §4.2: the bias has to follow B+.
 
-#### OPT 初級阻抗 × UL 抽頭
+#### OPT primary impedance × UL tap
 
 ![OPT impedance and UL](docs/figures/fig12_opt_raa_ul.png)
 
-- **初級阻抗 5–6.6 kΩ（MC34-B 可能範圍）內結果很平**：43 % UL 時最大功率 24.2–24.3 W、10 W 失真 0.26–0.31 %、阻尼因數 10.6–12.2。所以 OPT 實際是 5 k 還是 6.6 k，對設計影響不大。
-- **UL 抽頭影響比初級阻抗大**：抽頭越低越接近五極接法，功率越大（20 %：約 28–32 W；55 %：約 20–21 W），而且因為開迴路增益較高、迴授較深，失真反而更低。
-- 阻尼因數主要隨初級阻抗上升（4 k：約 9.5；8 k：約 13.3），UL 抽頭影響很小。初級阻抗越高失真越低（4 k → 8 k：0.37 → 0.23 %，43 % UL）。
-- 在 v1.5 的高頻補償下，這 20 個組合的高頻峰都不超過 +0.4 dB。
+- **Results are flat across 5–6.6 kΩ primary impedance (the likely MC34-B range)**: at 43 % UL, maximum power 24.2–24.3 W, distortion at 10 W 0.26–0.31 %, damping factor 10.6–12.2. Whether the OPT is really 5 k or 6.6 k makes little difference to the design.
+- **The UL tap matters more than the primary impedance**: a lower tap is closer to pentode connection and gives more power (20 %: about 28–32 W; 55 %: about 20–21 W), and, because open-loop gain is higher and feedback deeper, lower distortion as well.
+- Damping factor rises mainly with primary impedance (4 k: about 9.5; 8 k: about 13.3); the UL tap has little effect. Higher primary impedance also gives lower distortion (4 k → 8 k: 0.37 → 0.23 %, 43 % UL).
+- With the v1.5 high-frequency compensation, none of these 20 combinations has a high-frequency peak above +0.4 dB.
 
-#### OPT 初級電感與漏感：迴授穩定度
+#### OPT primary inductance and leakage: feedback stability
 
 ![OPT inductance and leakage](docs/figures/fig13_opt_lp_kc.png)
 
-- **低頻**：初級電感 10–80 H，−3 dB 下限在 7–11 Hz，沒有任何低頻峰，低頻端很穩。
-- **高頻（v1.5）**：−3 dB 上限在 26–32 kHz。漏感越大，屏對屏 RC 與漏感形成的諧振越明顯：漏感 80 mH（k = 0.999，或初級 80 H）時 18 kHz 附近 +1.4 dB；漏感 160 mH（k = 0.998）時 17 kHz 附近 **+4.5 dB**。基準漏感 40 mH（k = 0.9995）時只有 +0.2 dB。
+- **Low frequencies**: with 10–80 H primary inductance the −3 dB lower limit is 7–11 Hz, with no low-frequency peak at all; the low end is very stable.
+- **High frequencies (v1.5)**: the −3 dB upper limit is 26–32 kHz. The larger the leakage inductance, the more pronounced the resonance between the plate-to-plate RC and the leakage: 80 mH leakage (k = 0.999, or 80 H primary) gives +1.4 dB near 18 kHz; 160 mH leakage (k = 0.998) gives **+4.5 dB** near 17 kHz. At the baseline 40 mH leakage (k = 0.9995) it is only +0.2 dB.
 
-**高頻穩定度是怎麼決定的**
+**How the high-frequency stability was decided**
 
-v1.1（只有 2.7 k ∥ 1 nF 迴授）的迴路在約 1 MHz 附近有窄共振，某些 OPT 組合會被推到 0 dB 以上，代表接近振盪。例如初級電感 20 H 時，1.41 MHz 處有 **+12.6 dB**（上圖中間虛線）。真實 OPT 參數未知，所以補償必須對所有可能的 OPT 都有效。做法是在 OPT 參數網格上找每種補償方案的最壞情況：
+In v1.1 (feedback 2.7 k ∥ 1 nF only), the loop had a narrow resonance near 1 MHz that some OPT combinations pushed above 0 dB, meaning close to oscillation. For example, with 20 H primary inductance there is **+12.6 dB** at 1.41 MHz (middle dashed line in the figure above). The real OPT parameters are unknown, so the compensation has to work for every plausible OPT. The method was to find the worst case of each compensation scheme over a grid of OPT parameters:
 
-| 補償方案 | 120 組網格：最壞高頻峰 | 頻寬 (−3 dB) |
+| Compensation | Worst high-frequency peak, 120-point grid | Bandwidth (−3 dB) |
 |---|---|---|
-| 無（v1.1） | **+19.5 dB** | 61 kHz |
-| 只加 Zobel 4.7 Ω + 100 nF | **+11.8 dB** | 61 kHz |
-| 只把 CFB 改為 470 pF | **+25.3 dB** | 131 kHz |
-| 只加 6N2 屏極階梯網路 4.7 k + 470 pF | +4.6 dB | 29 kHz |
-| 階梯網路 4.7 k + 470 pF ＋ Zobel | −0.1 dB | 30 kHz |
+| None (v1.1) | **+19.5 dB** | 61 kHz |
+| Zobel 4.7 Ω + 100 nF only | **+11.8 dB** | 61 kHz |
+| CFB changed to 470 pF only | **+25.3 dB** | 131 kHz |
+| 6N2 plate step network 4.7 k + 470 pF only | +4.6 dB | 29 kHz |
+| Step network 4.7 k + 470 pF + Zobel | −0.1 dB | 30 kHz |
 
-再用 1440 組的密集網格（初級阻抗 4–8 k、UL 20–55 %、初級電感 16–60 H、耦合係數 0.998–0.9998）比較幾種階梯網路（都搭配 Zobel）：
+A dense 1440-point grid (primary impedance 4–8 k, UL 20–55 %, primary inductance 16–60 H, coupling coefficient 0.998–0.9998) was then used to compare several step networks (all with the Zobel):
 
-| 階梯網路 | 100 kHz 以上最壞峰值 | 5–100 kHz 最壞隆起 | 20 kHz 響應 |
+| Step network | Worst peak above 100 kHz | Worst bump 5–100 kHz | Response at 20 kHz |
 |---|---|---|---|
-| 4.7 k + 220 pF | −0.3 dB（裕度太小） | +0.33 dB | −0.8 dB |
+| 4.7 k + 220 pF | −0.3 dB (too little margin) | +0.33 dB | −0.8 dB |
 | 4.7 k + 470 pF | −0.7 dB | +0.31 dB | −1.65 dB |
-| **3.3 k + 470 pF（v1.3）** | **−9.2 dB** | +0.47 dB | −1.5 dB |
+| **3.3 k + 470 pF (v1.3)** | **−9.2 dB** | +0.47 dB | −1.5 dB |
 | 2.2 k + 470 pF | −9.3 dB | +0.64 dB | −1.4 dB |
 | 6.8 k + 330 pF | **+18.8 dB** | +0.23 dB | −1.25 dB |
 
-結果對元件值很敏感（6.8 k + 330 pF 反而更差），所以 v1.3 選擇裕度大、5–100 kHz 隆起又小的 **3.3 kΩ + 470 pF**，搭配輸出端 Zobel 4.7 Ω + 100 nF。代價是頻寬從約 61 kHz 降到約 31 kHz（20 kHz 處 −1.5 dB）。
+The results are sensitive to part values (6.8 k + 330 pF is worse, not better), so v1.3 chose **3.3 kΩ + 470 pF**, which has a large margin and a small 5–100 kHz bump, together with an output Zobel of 4.7 Ω + 100 nF. The cost is bandwidth, down from about 61 kHz to about 31 kHz (−1.5 dB at 20 kHz).
 
-> 模型沒有包含 OPT 繞組分布電容，共振的頻率與高度只供參考；結論是「這個迴路需要高頻補償，而且要對 OPT 參數有足夠裕度」。
+> The model does not include OPT winding capacitance, so the frequency and height of the resonance are only indicative. The conclusion is that "this loop needs high-frequency compensation, with enough margin over the OPT parameters".
 
-> **v1.3（2026-11-03）**：加入 6N2 屏極階梯網路 3.3 kΩ + 470 pF（`RSTEP`、`CSTEP`）與輸出端 Zobel 4.7 Ω + 100 nF（`RZOB`、`CZOB`）。以上兩個表格是 v1.3 的選擇過程，當時只考慮 4 Ω 負載。
+> **v1.3 (2026-11-03)**: added a 6N2 plate step network of 3.3 kΩ + 470 pF (`RSTEP`, `CSTEP`) and an output Zobel of 4.7 Ω + 100 nF (`RZOB`, `CZOB`). The two tables above are the v1.3 selection process, which at the time considered only the 4 Ω load.
 >
-> **v1.4（2026-11-03）取代 v1.3**：接上 ELT 10 模型後發現 v1.3 在部分 OPT 組合下不穩定，改為 Zobel 10 Ω + 470 nF 並拿掉 1 nF 相位超前電容，詳見 §4.5。
+> **v1.4 (2026-11-03) supersedes v1.3**: with the ELT 10 model connected, v1.3 turned out to be unstable for some OPT combinations, so the Zobel became 10 Ω + 470 nF and the 1 nF phase-lead capacitor was removed; see §4.5.
 >
-> **v1.5（2026-11-04）取代 v1.4**：加入 OPT 繞組分布電容後 v1.4 不穩定，改為加屏對屏 RC 4.7 kΩ + 2.2 nF、Zobel 10 Ω + 1 µF、CFB 100 pF，詳見 §4.8。上面兩個表格是當時的選擇過程（舊 6P3S-E 模型），保留作為紀錄。
+> **v1.5 (2026-11-04) supersedes v1.4**: once OPT winding capacitance was added, v1.4 was unstable, so v1.5 adds a plate-to-plate RC of 4.7 kΩ + 2.2 nF, a Zobel of 10 Ω + 1 µF and CFB of 100 pF; see §4.8. The two tables above are the selection process of that time (old 6P3S-E model), kept as a record.
 
-### 4.4 方波響應與迴路穩定度
+### 4.4 Square-wave response and loop stability
 
-#### 方波
+#### Square wave
 
 ![Square wave](docs/figures/fig14_square_wave.png)
 
-輸入 ±0.16 V 方波（4 Ω 上約 4 V 峰值），OPT 用基準假設值。
+Input is a ±0.16 V square wave (about 4 V peak across 4 Ω), with the baseline OPT assumptions.
 
-- **10 kHz、4 Ω**：v1.5 過衝 6.9 %，上升時間 9.0 µs（與 32 kHz 頻寬一致；v1.4 為 1.2 % / 6.6 µs）。
-- **v1.1 不接負載會自激振盪**（左上圖橘線）；v1.5 不接負載仍然乾淨（過衝 3.6 %）。
-- **1 kHz**：上升時間 8.8 µs，平頂傾斜 0.6 %。
-- **40 Hz**：平頂在 1/8 週期內（半週期的後半段）傾斜 15 %，與 7.4 Hz 的低頻截止點相符（一階高通的理論值約 13.5 %），沒有低頻振盪。（5 kHz 以下的方波邊緣用 1 µs：20 ns 邊緣在 ngspice 中可能讓 6N2 模型的時間步長卡住；1 kHz 的上升時間因此略為偏大。）
+- **10 kHz, 4 Ω**: v1.5 overshoots 6.9 % with a 9.0 µs rise time (consistent with the 32 kHz bandwidth; v1.4 was 1.2 % / 6.6 µs).
+- **v1.1 oscillates with no load connected** (orange trace, top left); v1.5 stays clean with no load (3.6 % overshoot).
+- **1 kHz**: 8.8 µs rise time, 0.6 % tilt across the flat top.
+- **40 Hz**: the flat top tilts 15 % over 1/8 of a period (the second half of the half-period), consistent with the 7.4 Hz low-frequency corner (a first-order high-pass gives about 13.5 % in theory); no low-frequency oscillation. (Square waves below 5 kHz use 1 µs edges: 20 ns edges can stall the 6N2 model's time step in ngspice; this makes the 1 kHz rise time slightly larger.)
 
-#### 迴路增益與相位裕度
+#### Loop gain and phase margin
 
 ![Loop gain](docs/figures/fig15_loop_gain.png)
 
-在迴授取樣點（喇叭端 → RFB）用 Middlebrook 電壓注入法量迴路增益 T(f)。中頻迴路增益約 18.5 dB（約 20 dB 迴授）。
+Loop gain T(f) is measured with Middlebrook voltage injection at the feedback sampling point (speaker terminal → RFB). Midband loop gain is about 18.5 dB (about 20 dB of feedback).
 
-**不同負載（基準 OPT）**：相位裕度 / 增益裕度，括號內是 10 kHz 方波過衝
+**Different loads (baseline OPT)**: phase margin / gain margin, with 10 kHz square-wave overshoot in parentheses
 
-| 負載 | v1.1 | v1.3 | v1.4 | **v1.5** |
+| Load | v1.1 | v1.3 | v1.4 | **v1.5** |
 |---|---|---|---|---|
-| 4 Ω | 33° / 6.1 dB（0 %） | 126° / 24.8 dB（0 %） | 88° / 37.8 dB（1 %） | **77° / 53.8 dB（7 %）** |
-| 8 Ω | 4° / 0.5 dB（6 %） | 116° / 21.6 dB（0 %） | 86° / 34.4 dB（2 %） | **78° / 49.9 dB（5 %）** |
-| 4 Ω ∥ 0.47 µF | 10° / 2.6 dB（2 %） | 103° / 27.0 dB（0 %） | 75° / 22.2 dB（6 %） | **71° / 49.7 dB（11 %）** |
-| 4 Ω ∥ 2 µF | 33° / 11.1 dB（1 %） | 72° / 37.0 dB（6 %） | 53° / 19.0 dB（32 %） | **53° / 12.4 dB（51 %）** |
-| 只接 0.47 µF | 8° / **−3.5 dB**（14 %） | 52° / 25.4 dB（0 %） | 35° / 10.3 dB（50 %） | **59° / 10.7 dB（32 %）** |
-| 只接 2 µF | 25° / 9.1 dB（2 %） | 42° / 36.7 dB（26 %） | 21° / 10.3 dB（43 %） | **17° / 2.7 dB（30 %）** |
-| 不接負載 | 自激振盪 | 77° / 17.2 dB（0 %） | 87° / 27.8 dB（2 %） | **85° / 42.9 dB（4 %）** |
+| 4 Ω | 33° / 6.1 dB (0 %) | 126° / 24.8 dB (0 %) | 88° / 37.8 dB (1 %) | **77° / 53.8 dB (7 %)** |
+| 8 Ω | 4° / 0.5 dB (6 %) | 116° / 21.6 dB (0 %) | 86° / 34.4 dB (2 %) | **78° / 49.9 dB (5 %)** |
+| 4 Ω ∥ 0.47 µF | 10° / 2.6 dB (2 %) | 103° / 27.0 dB (0 %) | 75° / 22.2 dB (6 %) | **71° / 49.7 dB (11 %)** |
+| 4 Ω ∥ 2 µF | 33° / 11.1 dB (1 %) | 72° / 37.0 dB (6 %) | 53° / 19.0 dB (32 %) | **53° / 12.4 dB (51 %)** |
+| 0.47 µF only | 8° / **−3.5 dB** (14 %) | 52° / 25.4 dB (0 %) | 35° / 10.3 dB (50 %) | **59° / 10.7 dB (32 %)** |
+| 2 µF only | 25° / 9.1 dB (2 %) | 42° / 36.7 dB (26 %) | 21° / 10.3 dB (43 %) | **17° / 2.7 dB (30 %)** |
+| No load | Oscillates | 77° / 17.2 dB (0 %) | 87° / 27.8 dB (2 %) | **85° / 42.9 dB (4 %)** |
 
-**不同 OPT（4 Ω，120 組網格的最壞情況）**
+**Different OPTs (4 Ω, worst case over the 120-point grid)**
 
-| | 最低相位裕度 | 最低增益裕度 |
+| | Lowest phase margin | Lowest gain margin |
 |---|---|---|
 | v1.1 | **0°** | **−12.1 dB** |
 | v1.3 | 35° | 5.6 dB |
 | v1.4 | 71° | 20.9 dB |
 | **v1.5** | **50°** | **37.7 dB** |
 
-（這兩個表都沒有加 OPT 繞組電容；加上之後的結果見 §4.8。）
+(Neither table includes OPT winding capacitance; results with it are in §4.8.)
 
-**結論**：v1.1 在 8 Ω、小電容負載或不接負載時會振盪。v1.5 在電阻負載、不接負載與 ELT 10（見 §4.5）下裕度都很大；代價是純電容負載（不接喇叭、只接電容）的裕度很小：只接 2 µF 時增益裕度只有 2.7 dB，加上繞組電容就會振盪（§4.8）。
+**Conclusion**: v1.1 oscillates with 8 Ω, with small capacitive loads or with no load. v1.5 has large margins with resistive loads, no load and the ELT 10 (see §4.5). The cost is a small margin with purely capacitive loads (no speaker, a capacitor only): with 2 µF alone the gain margin is only 2.7 dB, and adding winding capacitance makes it oscillate (§4.8).
 
-### 4.5 接上 ELT 10（估計阻抗模型）
+### 4.5 Driving the ELT 10 (estimated impedance model)
 
-#### 喇叭模型
+#### Speaker model
 
 ![ELT 10 impedance](docs/figures/fig16_elt10_impedance.png)
 
-ELT 10 沒有公開的阻抗曲線或單體參數，所以 `models/elt10_est.inc` 是**依規格建立的估計模型，不是實測**：
+The ELT 10 has no published impedance curve or driver parameters, so `models/elt10_est.inc` is **an estimated model built from the specifications, not a measurement**:
 
-- 已知規格：二音路倒相式、2 × 165 mm 低音並聯、25 mm 球頂高音、分頻 2.7 kHz、4 Ω、38 Hz – 25 kHz、外箱 850 × 230 × 310 mm（[HiFi-Wiki](https://hifi-wiki.com/index.php/Elac_ELT_10)）。
-- 假設值：每支低音用典型 8 Ω 級 6.5 吋單體（Re 6.2 Ω、fs 42.5 Hz、Qts 約 0.47、Vas 25 L），箱體淨容積 38 L、導相管調諧 40 Hz，高音用典型 25 mm 球頂，分頻器為 2.7 kHz 二階。
-- 低音用電–機–聲耦合方式模擬（Bl 耦合、兩支單體共用同一箱體與導相管），不是只畫一條曲線。
-- 結果：低音有 25 Hz 與 70 Hz 兩個阻抗峰、40 Hz 調諧谷；最低 3.36 Ω @ 252 Hz（不低於標稱的 80 %）；分頻附近升到約 11 Ω；相位在 ±45° 內。聲學輸出 −3 dB 約 45 Hz、−6 dB 約 38 Hz，與規格的 38 Hz 下限相符。
+- Known specifications: two-way bass reflex, 2 × 165 mm woofers in parallel, 25 mm dome tweeter, 2.7 kHz crossover, 4 Ω, 38 Hz – 25 kHz, cabinet 850 × 230 × 310 mm ([HiFi-Wiki](https://hifi-wiki.com/index.php/Elac_ELT_10)).
+- Assumed values: each woofer is a typical 8 Ω-class 6.5" driver (Re 6.2 Ω, fs 42.5 Hz, Qts about 0.47, Vas 25 L), 38 L net cabinet volume, port tuned to 40 Hz, a typical 25 mm dome tweeter, and a second-order crossover at 2.7 kHz.
+- The woofers are simulated with electro-mechano-acoustic coupling (Bl coupling, both drivers sharing one cabinet and port), not just drawn as a curve.
+- Result: two bass impedance peaks at 25 Hz and 70 Hz with a 40 Hz tuning dip; minimum 3.36 Ω at 252 Hz (not below 80 % of nominal); rising to about 11 Ω around the crossover; phase within ±45°. Acoustic output is −3 dB at about 45 Hz and −6 dB at about 38 Hz, matching the 38 Hz lower limit in the specifications.
 
-#### 擴大機接 ELT 10
+#### The amplifier driving the ELT 10
 
 ![ELT 10 load](docs/figures/fig17_elt10_load.png)
 
-- **頻率響應**：20 Hz – 20 kHz 內與 4 Ω 電阻相比偏差 −1.1 / +0.5 dB，是輸出阻抗（阻尼因數 11.6）與喇叭阻抗起伏造成的。
-- **最大輸出電壓**：跟著喇叭阻抗走。阻抗高的頻率（60–100 Hz、1–3 kHz）能輸出 12.3–12.8 Vrms，阻抗低的 300 Hz 約 9.0 Vrms；4 Ω 電阻則約 9.1–9.9 Vrms。10 kHz 時降到 2.7 Vrms（4 Ω，約 2 W）／3.1 Vrms（ELT 10）：屏對屏 RC 在高頻加重了功率管的負載（§4.8），而 10 kHz 的迴路增益也較低、交越失真壓不下來。
-- **穩定度**：喇叭在高頻阻抗上升，對擴大機來說接近不接負載。
+- **Frequency response**: within 20 Hz – 20 kHz it deviates −1.1 / +0.5 dB from the 4 Ω resistor, caused by the output impedance (damping factor 11.6) and the ripples in speaker impedance.
+- **Maximum output voltage**: follows the speaker impedance. At high-impedance frequencies (60–100 Hz, 1–3 kHz) it reaches 12.3–12.8 Vrms, and about 9.0 Vrms at the low-impedance 300 Hz; into a 4 Ω resistor it is about 9.1–9.9 Vrms. At 10 kHz it drops to 2.7 Vrms (4 Ω, about 2 W) / 3.1 Vrms (ELT 10): the plate-to-plate RC loads the power tubes more heavily at high frequencies (§4.8), and the loop gain at 10 kHz is also lower, so crossover distortion is not suppressed as well.
+- **Stability**: the speaker's impedance rises at high frequencies, so to the amplifier it looks close to no load.
 
-| | 基準 OPT：相位裕度 / 增益裕度 | 120 組 OPT 網格的最壞情況 |
+| | Baseline OPT: phase margin / gain margin | Worst case over the 120-point OPT grid |
 |---|---|---|
-| v1.1 | 自激振盪（10 kHz 方波過衝 927 %） | 振盪 |
-| v1.3 | 80° / 17.2 dB | **0° / −0.8 dB（不穩定）** |
+| v1.1 | Oscillates (927 % overshoot on a 10 kHz square wave) | Oscillates |
+| v1.3 | 80° / 17.2 dB | **0° / −0.8 dB (unstable)** |
 | v1.4 | 103° / 28.7 dB | 84° / 14.7 dB |
 | **v1.5** | **94° / 43.1 dB** | **76° / 27.8 dB** |
 
-#### 為什麼從 v1.3 改成 v1.4
+#### Why v1.3 became v1.4
 
-v1.3 的補償是只用 4 Ω 負載挑的。接上 ELT 10 後，120 組 OPT 組合中有 12 組不穩定，所以重新搜尋補償值（階梯網路 × Zobel × 相位超前電容共 140 種組合），同時檢查 4 Ω、ELT 10、不接負載與純電容負載。關鍵發現是：**1 nF 相位超前電容會提高 MHz 頻段的迴路增益**，拿掉它反而更穩定、頻寬也更寬。
+The v1.3 compensation was chosen with a 4 Ω load only. With the ELT 10 connected, 12 of the 120 OPT combinations were unstable, so the compensation was searched again (140 combinations of step network × Zobel × phase-lead capacitor), checking 4 Ω, ELT 10, no load and purely capacitive loads at the same time. The key finding: **the 1 nF phase-lead capacitor raises loop gain in the MHz range**, and removing it is both more stable and wider in bandwidth.
 
-表中每格是 120 組 OPT 網格的「最低相位裕度 / 最低增益裕度（不及格組數）」：
+Each cell is the "lowest phase margin / lowest gain margin (number of failing combinations)" over the 120-point OPT grid:
 
-| 方案 | 20 kHz | 頻寬 | 4 Ω | ELT 10 | 不接負載 | 只接 0.47 µF | 只接 2 µF |
+| Scheme | 20 kHz | Bandwidth | 4 Ω | ELT 10 | No load | 0.47 µF only | 2 µF only |
 |---|---|---|---|---|---|---|---|
-| v1.3：Zobel 4.7 Ω + 100 nF、CFB 1 nF | −1.5 dB | 32 kHz | 30°/5.2 (0) | **1°/−1.6 (12)** | 0°/−1.6 (13) | 12°/6.0 (6) | 6°/17.7 (10) |
-| **v1.4：Zobel 10 Ω + 470 nF、無 CFB** | **−0.3 dB** | **55 kHz** | 66°/19.8 (0) | **78°/14.1 (0)** | 51°/13.6 (0) | 0°/−1.2 (22) | 3°/−4.7 (42) |
-| 備選 E：階梯 3.3 k + 1 nF、Zobel 10 Ω + 470 nF、CFB 220 pF | −2.5 dB | 23 kHz | 87°/18.9 (0) | 70°/9.7 (0) | 67°/9.3 (0) | 31°/18.6 (0) | 13°/9.4 (5) |
+| v1.3: Zobel 4.7 Ω + 100 nF, CFB 1 nF | −1.5 dB | 32 kHz | 30°/5.2 (0) | **1°/−1.6 (12)** | 0°/−1.6 (13) | 12°/6.0 (6) | 6°/17.7 (10) |
+| **v1.4: Zobel 10 Ω + 470 nF, no CFB** | **−0.3 dB** | **55 kHz** | 66°/19.8 (0) | **78°/14.1 (0)** | 51°/13.6 (0) | 0°/−1.2 (22) | 3°/−4.7 (42) |
+| Alternative E: step 3.3 k + 1 nF, Zobel 10 Ω + 470 nF, CFB 220 pF | −2.5 dB | 23 kHz | 87°/18.9 (0) | 70°/9.7 (0) | 67°/9.3 (0) | 31°/18.6 (0) | 13°/9.4 (5) |
 
-（所有方案的階梯網路都是 3.3 kΩ；v1.3、v1.4 為 3.3 k + 470 pF。）
+(Every scheme uses a 3.3 kΩ step network; v1.3 and v1.4 use 3.3 k + 470 pF.)
 
-v1.4 以實際要接的 ELT 10 為準：頻寬與 20 kHz 響應最好，對電阻、喇叭、不接負載都有大裕度。**已知限制**：只接電容、不接喇叭的實驗室測試在部分 OPT 組合下會振盪。若之後更重視任意負載下的穩定度，可改用備選 E（頻寬降到 23 kHz）。
+v1.4 is chosen for the ELT 10 that will actually be connected: it has the best bandwidth and 20 kHz response, and large margins with resistors, the speaker and no load. **Known limitation**: a lab test with a capacitor only and no speaker oscillates for some OPT combinations. If stability into arbitrary loads becomes more important later, alternative E can be used instead (bandwidth drops to 23 kHz).
 
-> **v1.4（2026-11-03）**：Zobel 由 4.7 Ω + 100 nF 改為 10 Ω + 470 nF（`RZOB`、`CZOB`），拿掉迴授電阻上的 1 nF（`CFB=1p`），階梯網路 3.3 kΩ + 470 pF 不變。所有圖表與數據已重新產生。接 ELT 10 模型：`SPK=1 RL=1e6`。
+> **v1.4 (2026-11-03)**: Zobel changed from 4.7 Ω + 100 nF to 10 Ω + 470 nF (`RZOB`, `CZOB`), the 1 nF across the feedback resistor removed (`CFB=1p`), step network 3.3 kΩ + 470 pF unchanged. All figures and data regenerated. To connect the ELT 10 model: `SPK=1 RL=1e6`.
 >
-> ⚠️ 喇叭模型是估計值；基準模型也沒有 OPT 鐵心飽和（繞組分布電容見 §4.8，鐵心飽和見 §4.10）。結論是「這種負載下需要怎樣的補償與裕度」，不是精確的數值。這一段的取捨表是 v1.4 當時的選擇過程（舊 6P3S-E 模型、沒有繞組電容），保留作為紀錄。
+> ⚠️ The speaker model is an estimate, and the baseline model has no OPT core saturation (winding capacitance is covered in §4.8, core saturation in §4.10). The conclusion is "what compensation and margins this kind of load needs", not exact numbers. The trade-off table in this section is the v1.4 selection process of that time (old 6P3S-E model, no winding capacitance), kept as a record.
 >
-> **ELT 10 實測阻抗**：目前找不到公開的實測阻抗曲線或單體 T/S 參數。取得後（自己量或廠商資料），把 `models/elt10_est.inc` 的 `PARAMS:` 改成實測擬合值，再重跑 `python tools/make_figures.py fig16 fig17` 即可。
+> **Measured ELT 10 impedance**: no published measured impedance curve or driver T/S parameters have been found yet. Once available (measured or from the manufacturer), change `PARAMS:` in `models/elt10_est.inc` to the fitted values and rerun `python tools/make_figures.py fig16 fig17`.
 
-### 4.6 管子離散敏感度
+### 4.6 Tube spread sensitivity
 
 ![Tube spread](docs/figures/fig18_tube_spread.png)
 
-同型號的真空管，個體之間電流與放大係數都有差異。這裡用模型參數模擬：
+Tubes of the same type differ from one another in current and amplification factor. This is simulated through model parameters:
 
-- **KG1**：決定管子電流（屏流約與 1/KG1 成正比）。KG1 × 1.25 ≈ 電流少 20 %。
-- **μ**：放大係數。
-- **逐管調偏壓**：網表新增 `DVB`，讓 V4 的偏壓可以相對 V3 單獨調整（V4 偏壓 = `VB` + `DVB`）。「調整後」代表兩支功率管都調到 34.4 mA。
+- **KG1**: sets the tube current (plate current is roughly proportional to 1/KG1). KG1 × 1.25 ≈ 20 % less current.
+- **μ**: amplification factor.
+- **Per-tube bias adjustment**: the netlist adds `DVB`, so V4's bias can be adjusted separately from V3 (V4 bias = `VB` + `DVB`). "Adjusted" means both power tubes are set to 34.4 mA.
 
-條件：v1.5、4 Ω、理想 400 V 電源、6P3S-E v4 模型。原始數據在 `docs/data/fig18_tube_spread.csv`。
+Conditions: v1.5, 4 Ω, ideal 400 V supply, 6P3S-E v4 model. Raw data is in `docs/data/fig18_tube_spread.csv`.
 
-#### 功率管一對不匹配（V3 標準、V4 偏移）
+#### A mismatched pair of power tubes (V3 nominal, V4 shifted)
 
-| V4 KG1 / 標準 | 偏壓固定 −42.9 V：兩管電流差 | 10 W THD | 逐管調整後：兩管電流差 | 10 W THD | 需要的 DVB |
+| V4 KG1 / nominal | Fixed −42.9 V bias: current difference | THD at 10 W | Adjusted per tube: current difference | THD at 10 W | DVB needed |
 |---|---|---|---|---|---|
-| 0.8（電流多約 25 %） | 8.4 mA | 0.25 % | 0.06 mA | 0.29 % | −2.6 V |
+| 0.8 (about 25 % more current) | 8.4 mA | 0.25 % | 0.06 mA | 0.29 % | −2.6 V |
 | 0.93 | 2.5 mA | 0.26 % | 0.02 mA | 0.28 % | −0.9 V |
-| 1.0（匹配） | 0 | 0.28 % | 0 | 0.28 % | 0 |
+| 1.0 (matched) | 0 | 0.28 % | 0 | 0.28 % | 0 |
 | 1.07 | 2.2 mA | 0.31 % | 0.01 mA | 0.28 % | +0.8 V |
-| 1.25（電流少 20 %） | 6.8 mA | 0.41 % | 0.04 mA | 0.30 % | +2.7 V |
+| 1.25 (20 % less current) | 6.8 mA | 0.41 % | 0.04 mA | 0.30 % | +2.7 V |
 
-- 不匹配會讓 OPT 裡流過**直流不平衡電流**（圖 a），推挽輸出變壓器對這個很敏感，會讓鐵心偏磁、低頻失真上升。這裡的基準模型沒有鐵心飽和，所以只能看電流大小；它對低頻失真的影響見 §4.10。
-- 逐管調偏壓能把直流不平衡壓到 0.1 mA 以下；調整後失真幾乎回到匹配時的值（0.28–0.30 %），剩下的差異來自兩管互導不同（圖 b）。
-- 偏壓固定時，失真曲線不對稱：V4 電流較大（KG1 < 1）時失真反而略低，電流較小時明顯變高。v4 模型的失真以交越失真為主，靜態電流越大越低（見下一段）。
+- A mismatch sends **DC unbalance current** through the OPT (figure a). Push-pull output transformers are sensitive to this: it biases the core and raises low-frequency distortion. The baseline model here has no core saturation, so only the size of the current can be seen; its effect on low-frequency distortion is in §4.10.
+- Per-tube bias adjustment brings the DC unbalance below 0.1 mA; after adjustment distortion returns almost to the matched value (0.28–0.30 %), and the remaining difference comes from the two tubes' different transconductance (figure b).
+- With fixed bias the distortion curve is asymmetric: when V4 draws more current (KG1 < 1) distortion is slightly lower, and when it draws less it is clearly higher. Distortion in the v4 model is dominated by crossover distortion, which falls as idle current rises (see the next part).
 
-#### 兩支功率管一起偏移（換廠牌、老化）
+#### Both power tubes shifted together (new brand, ageing)
 
-| V3、V4 KG1 / 標準 | 偏壓固定 −42.9 V：每管 Ik / Pa | 10 W THD | 逐管調整後需要的偏壓 |
+| V3, V4 KG1 / nominal | Fixed −42.9 V bias: Ik / Pa per tube | THD at 10 W | Bias needed after per-tube adjustment |
 |---|---|---|---|
-| 0.8（電流較大的管子） | 42.7 mA / **16.9 W** | 0.19 % | −45.5 V |
+| 0.8 (higher-current tubes) | 42.7 mA / **16.9 W** | 0.19 % | −45.5 V |
 | 0.9 | 38.1 mA / 15.1 W | 0.23 % | −44.1 V |
 | 1.0 | 34.4 mA / 13.6 W | 0.28 % | −42.9 V |
 | 1.1 | 31.3 mA / 12.4 W | 0.33 % | −41.8 V |
-| 1.25（電流較小的管子） | 27.6 mA / 11.0 W | 0.40 % | −40.2 V |
+| 1.25 (lower-current tubes) | 27.6 mA / 11.0 W | 0.40 % | −40.2 V |
 
-同一聲道兩支一起偏移時，兩管仍然平衡，影響是靜態屏耗與失真（圖 c）。偏壓固定時，電流大 25 % 的管子屏耗到 16.9 W，還在 20.5 W 額定內；調整後都回到 13.7 W。靜態電流 28 → 43 mA 時 10 W 失真 0.40 → 0.19 %：v4 模型下，靜態電流是失真與屏耗之間的取捨。
+When both tubes in a channel shift together they stay balanced, and the effect is on idle plate dissipation and distortion (figure c). With fixed bias, tubes with 25 % more current reach 16.9 W, still within the 20.5 W rating; after adjustment all return to 13.7 W. With idle current going from 28 to 43 mA, distortion at 10 W goes from 0.40 to 0.19 %: in the v4 model, idle current is a trade-off between distortion and plate dissipation.
 
-#### 推動管（6N2、6N1）
+#### Driver tubes (6N2, 6N1)
 
-輸出級已調偏壓的情況下，6N2 或 6N1 的 KG1 偏移 −25 % 到 +33 %，10 W 失真都在 0.26–0.30 %（圖 d），增益變化不到 ±1 %。直接耦合的工作點也守得住：
+With the output stage biased, shifting the KG1 of the 6N2 or 6N1 from −25 % to +33 % keeps distortion at 10 W within 0.26–0.30 % (figure d), with gain changing by less than ±1 %. The direct-coupled operating points hold as well:
 
-| 變化 | 6N2 Vgk | 長尾對屏陰壓 | 長尾對每邊電流 |
+| Change | 6N2 Vgk | LTP plate-to-cathode voltage | LTP current per side |
 |---|---|---|---|
-| 標準 | −0.90 V | 156 V | 4.9 mA |
+| Nominal | −0.90 V | 156 V | 4.9 mA |
 | 6N2 KG1 × 0.75 | −0.93 V | 168 V | 4.7 mA |
 | 6N2 KG1 × 1.33 | −0.87 V | 143 V | 5.1 mA |
-| 6N1 兩半 KG1 × 1.33 | −0.90 V | 157 V | 4.9 mA |
-| 6N1 兩半不匹配 × 1.33 | −0.90 V | 152 V | 5.1 mA |
+| Both 6N1 halves KG1 × 1.33 | −0.90 V | 157 V | 4.9 mA |
+| 6N1 halves mismatched × 1.33 | −0.90 V | 152 V | 5.1 mA |
 
-6N2 是直耦電路中最敏感的一支：它的屏壓決定長尾對的柵極電壓，所以 6N2 的差異會直接移動長尾對的工作點（屏陰壓 143–168 V）。但 6N2 的偏壓始終在 −0.86 V 到 −0.93 V 之間，沒有接近柵流區。
+The 6N2 is the most sensitive tube in the direct-coupled circuit: its plate voltage sets the long-tail pair's grid voltage, so a 6N2 difference moves the long-tail pair's operating point directly (143–168 V plate to cathode). But the 6N2's bias always stays between −0.86 V and −0.93 V, nowhere near grid current.
 
-#### 蒙地卡羅：200 台擴大機
+#### Monte Carlo: 200 amplifiers
 
-五個管子單元（V1 的 6N2、V2 6N1 的兩個三極單元、V3、V4）各自獨立抽樣：KG1 對數常態分布、標準差 10 %；μ 常態分布、標準差 3 %。每台分別算「偏壓固定 −42.9 V」與「逐管調整到 34.4 mA」兩種情況。
+Five tube sections (the 6N2 of V1, the two triode sections of the V2 6N1, V3 and V4) are sampled independently: KG1 log-normal with 10 % standard deviation; μ normal with 3 % standard deviation. Each amplifier is computed twice, "bias fixed at −42.9 V" and "adjusted per tube to 34.4 mA".
 
-| 指標 | 偏壓固定 −42.9 V | 逐管調整後 |
+| Metric | Bias fixed at −42.9 V | Adjusted per tube |
 |---|---|---|
-| 較熱那支功率管的靜態屏耗（中位數 / 95 %） | 15.1 W / 18.0 W | 13.7 W |
-| 超過 20.5 W 額定的台數 | **1 / 200**（最高 21.3 W） | 0 |
-| 超過 17 W 的台數 | 24 / 200 | 0 |
-| OPT 直流不平衡（中位數 / 95 % / 最大） | 5.0 / 15.2 / 26.6 mA | 0.0 / 0.1 / 0.2 mA |
-| 10 W THD（中位數 / 95 %） | 0.30 % / 0.42 % | 0.29 % / 0.33 % |
-| 增益（範圍） | — | 23.9–24.4 倍 |
-| 6N2 Vgk（範圍） | — | −0.86 到 −0.93 V |
-| 長尾對屏陰壓（範圍） | — | 143–172 V |
+| Idle plate dissipation of the hotter power tube (median / 95 %) | 15.1 W / 18.0 W | 13.7 W |
+| Amplifiers above the 20.5 W rating | **1 / 200** (highest 21.3 W) | 0 |
+| Amplifiers above 17 W | 24 / 200 | 0 |
+| OPT DC unbalance (median / 95 % / max) | 5.0 / 15.2 / 26.6 mA | 0.0 / 0.1 / 0.2 mA |
+| THD at 10 W (median / 95 %) | 0.30 % / 0.42 % | 0.29 % / 0.33 % |
+| Gain (range) | — | 23.9–24.4× |
+| 6N2 Vgk (range) | — | −0.86 to −0.93 V |
+| LTP plate-to-cathode voltage (range) | — | 143–172 V |
 
-**結論**
+**Conclusions**
 
-1. **逐管調偏壓是必要的**，主要是為了屏耗與 OPT 直流平衡；它也把失真的分散範圍縮小（95 % 0.42 → 0.33 %）。偏壓固定時，200 台中有 1 台功率管超過額定屏耗、24 台超過 17 W；OPT 直流不平衡常見 5–15 mA。
-2. **偏壓調整範圍**：200 台中每支管子需要的偏壓在 −37.3 V 到 −48.5 V 之間（1–99 % 落在 −38.9 到 −46.9 V）。每支管子的偏壓可調範圍至少要涵蓋 **−36 V 到 −50 V**。
-3. **功率管配對**：調偏壓之後，兩管互導差異對失真的影響變小（電流差 20 % 時 0.28 % → 0.30 %），因為 v4 模型的失真以交越失真為主。同一聲道用兩支特性接近的管子仍然比較好（直流平衡較容易維持）。
-4. **推動管不需要特別挑**：6N2、6N1 ±25–33 % 的差異對失真與增益的影響都很小，直耦工作點也保持在安全範圍。
+1. **Per-tube bias adjustment is necessary**, mainly for plate dissipation and OPT DC balance; it also narrows the spread of distortion (95 %: 0.42 → 0.33 %). With fixed bias, 1 amplifier in 200 has a power tube above its rated plate dissipation and 24 exceed 17 W; OPT DC unbalance of 5–15 mA is common.
+2. **Bias adjustment range**: across the 200 amplifiers each tube needs between −37.3 V and −48.5 V (1–99 % fall within −38.9 to −46.9 V). Each tube's bias adjustment range must cover at least **−36 V to −50 V**.
+3. **Power tube matching**: after bias adjustment, a transconductance difference has less effect on distortion (0.28 % → 0.30 % at a 20 % current difference), because distortion in the v4 model is dominated by crossover distortion. Two closely matched tubes per channel are still better (DC balance is easier to maintain).
+4. **Driver tubes need no selection**: ±25–33 % differences in the 6N2 and 6N1 have little effect on distortion or gain, and the direct-coupled operating points stay in a safe range.
 
-> 限制：只模擬了 KG1 與 μ 兩個參數；這一節的 OPT 是線性鐵心，直流不平衡對低頻失真的影響另見 §4.10。
+> Limits: only two parameters, KG1 and μ, are simulated; the OPT in this section has a linear core, and the effect of DC unbalance on low-frequency distortion is covered separately in §4.10.
 
-### 4.7 偏壓電源
+### 4.7 Bias supply
 
 ![Bias supply](docs/figures/fig19_bias_supply.png)
 
-先前立體聲網表的偏壓是「理想電壓源 × 市電係數」。現在換成實際電路，寫在 `psu_v1.cir`，由產生器帶進 `amp_stereo_psu_v1.cir`：
+The stereo netlist's bias used to be "ideal voltage source × mains factor". It is now the actual circuit, written in `psu_v1.cir` and brought into `amp_stereo_psu_v1.cir` by the generator:
 
-- 電源變壓器上的偏壓繞組 45 Vrms（假設值），半波整流 → 47 µF → 1 kΩ → 100 µF，得到約 −58.5 V 的偏壓匯流排（`nbus`），漣波 16 mV p-p。
-- 每支功率管一組分壓：15 kΩ → 25 kΩ 可變電阻（滑動點 = 柵極偏壓，另接 10 µF 到地）→ 56 kΩ 到地。四組共吸約 2.4 mA。
-- 可變電阻位置 `WA`、`WB`（0 = 最不負，1 = 最負）；0.598 對應每管 34.4 mA（柵極 −43.0 V）。
-- 下分壓電阻原本是 62 kΩ，用 v3 管子模型時改為 56 kΩ（當時需要的偏壓較淺）。換成 v4 模型後需要的範圍變成 −37.3 到 −48.5 V，56 kΩ 仍然涵蓋，但最負的一端只剩約 0.7 V 餘裕；62 kΩ（−35.6 到 −49.9 V）兩端的餘裕較平均（1.7 V / 1.4 V）。
+- A 45 Vrms bias winding on the power transformer (assumed value), half-wave rectified → 47 µF → 1 kΩ → 100 µF, giving a bias bus (`nbus`) of about −58.5 V with 16 mV p-p ripple.
+- One divider per power tube: 15 kΩ → 25 kΩ pot (wiper = grid bias, with 10 µF to ground) → 56 kΩ to ground. The four dividers draw about 2.4 mA in total.
+- Pot positions `WA`, `WB` (0 = least negative, 1 = most negative); 0.598 gives 34.4 mA per tube (grid −43.0 V).
+- The lower divider resistor was originally 62 kΩ and was changed to 56 kΩ with the v3 tube models (which needed shallower bias). With the v4 models the required range becomes −37.3 to −48.5 V; 56 kΩ still covers it, but leaves only about 0.7 V of margin at the most negative end, while 62 kΩ (−35.6 to −49.9 V) gives more even margins at both ends (1.7 V / 1.4 V).
 
-| 項目 | 結果 |
+| Item | Result |
 |---|---|
-| 可調範圍（市電 110 V） | **−34.0 到 −49.2 V**，涵蓋 §4.6 蒙地卡羅需要的 −37.3 到 −48.5 V |
-| 可調範圍（市電 99 / 121 V） | −30.7 到 −44.3 V / −37.4 到 −54.1 V（範圍跟著市電等比例移動，與管子需要的偏壓同方向） |
-| 市電 99 → 121 V 時每管屏耗 | 偏壓電源模型：**10.7 → 17.0 W**；偏壓固定 −43.0 V：8.1 → **21.0 W**（超過額定） |
-| 偏壓漣波 | 匯流排 1.3 mV rms，柵極 5.6 µV rms（120 Hz） |
-| 喇叭端 120 Hz 哼聲 | 兩管匹配 0.30 µV（理想偏壓 0.15 µV）；V4 少 5 % 時 8.6 µV（理想偏壓 8.9 µV）。偏壓漣波的貢獻可以忽略 |
-| 冷機開機（管子從 t = 0 就導通） | 功率管電流在 0.18 s 時衝到 **205 mA**（理想偏壓 138 mA） |
+| Adjustment range (110 V mains) | **−34.0 to −49.2 V**, covering the −37.3 to −48.5 V the §4.6 Monte Carlo needs |
+| Adjustment range (99 / 121 V mains) | −30.7 to −44.3 V / −37.4 to −54.1 V (the range moves in proportion to the mains, in the same direction as the bias the tubes need) |
+| Plate dissipation per tube, mains 99 → 121 V | Bias supply model: **10.7 → 17.0 W**; bias fixed at −43.0 V: 8.1 → **21.0 W** (above rating) |
+| Bias ripple | 1.3 mV rms on the bus, 5.6 µV rms at the grid (120 Hz) |
+| 120 Hz hum at the speaker | Matched tubes 0.30 µV (ideal bias 0.15 µV); V4 5 % low 8.6 µV (ideal bias 8.9 µV). The bias ripple's contribution is negligible |
+| Cold start (tubes conducting from t = 0) | Power tube current surges to **205 mA** at 0.18 s (ideal bias 138 mA) |
 
-- **市電跟隨**：之前 §4.2 假設「偏壓由同一顆變壓器供應、跟著市電變動」，這裡用實際電路確認了（121 V 時 17.0 W）。
-- **開機尖峰**：偏壓要約 1 秒才建立完成（濾波電容與 10 µF 滑動點電容要充電），而 B+ 在 0.3 秒內就上到 300 V，所以兩者之間有一段時間柵極偏壓不夠負。模型假設管子一開機就導通；實際上燈絲要十幾秒才熱，那時偏壓早已建立，所以正常開機不會發生。熱機時快速斷電再開才可能出現。
+- **Tracking the mains**: §4.2 assumed that "the bias comes from the same transformer and follows the mains"; the actual circuit confirms it (17.0 W at 121 V).
+- **Power-on spike**: the bias takes about 1 second to come up (the filter capacitors and the 10 µF wiper capacitors have to charge), while B+ reaches 300 V within 0.3 seconds, so for a while the grid bias is not negative enough. The model assumes the tubes conduct as soon as power is applied; in reality the heaters take over ten seconds to warm up, by which time the bias is long established, so a normal power-on does not see this. It can only happen when a warm amplifier is switched off and quickly back on.
 
-### 4.8 OPT 繞組分布電容與 v1.5
+### 4.8 OPT winding capacitance and v1.5
 
 ![OPT winding capacitance](docs/figures/fig20_opt_capacitance.png)
 
-真實的輸出變壓器繞組之間有分布電容，v1.4 以前的模型沒有。這裡在 OPT 模型加上兩個集總電容（`CPP`、`CPS`，預設 1 pF = 不加）：
+A real output transformer has distributed capacitance between its windings, which the models up to v1.4 left out. Here two lumped capacitors are added to the OPT model (`CPP`, `CPS`; default 1 pF = not added):
 
-- **CPP**：兩個初級半邊的屏極之間（V3 屏極 ↔ V4 屏極）。
-- **CPS**：初級對次級，平均分到兩端（一半在 V3 屏極 ↔ 喇叭端，一半在 V4 屏極 ↔ 地）。
+- **CPP**: between the plates of the two primary halves (V3 plate ↔ V4 plate).
+- **CPS**: primary to secondary, split evenly across both ends (half between V3 plate ↔ speaker terminal, half between V4 plate ↔ ground).
 
-MC34-B 的實際數值未知，所以掃描屏對屏 0–1 nF、初次級 0–3 nF；**300 pF / 1 nF 當作典型估計**，1 nF / 3 nF 當作嚴苛情況。原始數據在 `docs/data/fig20_opt_capacitance.csv`。
+The real MC34-B values are unknown, so plate-to-plate 0–1 nF and primary-to-secondary 0–3 nF are swept; **300 pF / 1 nF is taken as the typical estimate** and 1 nF / 3 nF as the harsh case. Raw data is in `docs/data/fig20_opt_capacitance.csv`.
 
-#### v1.4 的問題
+#### The problem with v1.4
 
-只要加上典型的繞組電容，v1.4 的裕度就大幅下降（圖 b）：基準 OPT、4 Ω 時增益裕度從 37.8 dB 掉到 9.6 dB（300 pF / 1 nF）、6.1 dB（1 nF / 3 nF）。在 120 組 OPT 網格上更明顯：
+As soon as typical winding capacitance is added, v1.4's margins drop sharply (figure b): with the baseline OPT into 4 Ω, gain margin falls from 37.8 dB to 9.6 dB (300 pF / 1 nF) and 6.1 dB (1 nF / 3 nF). Over the 120-point OPT grid it is clearer still:
 
-| v1.4，CPP 300 pF / CPS 1 nF | 最低相位裕度 / 最低增益裕度（不及格組數 / 120） |
+| v1.4, CPP 300 pF / CPS 1 nF | Lowest phase margin / lowest gain margin (failing combinations / 120) |
 |---|---|
-| 4 Ω | 2° / **−2.4 dB（14）** |
-| ELT 10 | 12° / 3.6 dB（2） |
-| 不接負載 | 1° / **−6.4 dB（22）** |
+| 4 Ω | 2° / **−2.4 dB (14)** |
+| ELT 10 | 12° / 3.6 dB (2) |
+| No load | 1° / **−6.4 dB (22)** |
 
-（不及格 = 相位裕度 < 20° 或增益裕度 < 3 dB；增益裕度 < 0 dB 代表會振盪。）
+(Failing = phase margin < 20° or gain margin < 3 dB; gain margin < 0 dB means it oscillates.)
 
-#### 重新搜尋補償
+#### Searching the compensation again
 
-條件：迴授電阻固定 2.7 kΩ（增益、阻尼因數不變）；36 組 OPT 網格 × 繞組電容 {無、300 pF / 1 nF} × 負載 {4 Ω、不接、ELT 10} 的最壞情況要有相位裕度 ≥ 20°、增益裕度 ≥ 3 dB，基準 OPT 加典型電容時 4 Ω 與 ELT 10 要 ≥ 45° / 10 dB。
+Conditions: feedback resistor fixed at 2.7 kΩ (gain and damping factor unchanged); the worst case over a 36-point OPT grid × winding capacitance {none, 300 pF / 1 nF} × load {4 Ω, none, ELT 10} must have phase margin ≥ 20° and gain margin ≥ 3 dB, and with the baseline OPT plus typical capacitance, 4 Ω and ELT 10 must reach ≥ 45° / 10 dB.
 
-- 只調階梯網路、Zobel、相位超前電容（180 種組合，含迴授電阻 4.7 k、6.8 k）：**沒有一組能在 4 Ω 與不接負載下同時保持足夠裕度**，表現最好的幾組在不接負載時最低增益裕度也只有 0.3–3.3 dB。繞組電容造成的共振在初級側，從次級側很難壓住。
-- 加上**屏對屏 RC**（兩支功率管屏極之間串一個電阻與電容）之後有 30 組通過。選擇 20 kHz 響應最好、裕度也大的一組作為 **v1.5**：
+- Adjusting only the step network, Zobel and phase-lead capacitor (180 combinations, including 4.7 k and 6.8 k feedback resistors): **no combination keeps enough margin with both 4 Ω and no load**. The best few still have a lowest gain margin of only 0.3–3.3 dB with no load. The resonance from winding capacitance is on the primary side and is hard to suppress from the secondary.
+- With a **plate-to-plate RC** added (a resistor and capacitor in series between the two power tube plates), 30 combinations pass. The one with the best 20 kHz response and large margins becomes **v1.5**:
 
-| | v1.4 | **v1.5** | v1.5-C（純電容負載優先） |
+| | v1.4 | **v1.5** | v1.5-C (purely capacitive loads first) |
 |---|---|---|---|
-| 階梯網路 | 3.3 k + 470 pF | 3.3 k + 470 pF | 3.3 k + 1 nF |
-| 迴授電阻並聯 | — | 100 pF | 220 pF |
-| 輸出 Zobel | 10 Ω + 470 nF | 10 Ω + 1 µF | 10 Ω + 1 µF |
-| 屏對屏 RC | — | **4.7 kΩ + 2.2 nF** | 4.7 kΩ + 2.2 nF |
-| 20 kHz 響應 / −3 dB 頻寬 | −0.5 dB / 47 kHz | **−0.5 dB / 32 kHz** | −4.3 dB / 17 kHz |
-| 阻尼因數 | 11.6 | 11.6 | 11.0 |
+| Step network | 3.3 k + 470 pF | 3.3 k + 470 pF | 3.3 k + 1 nF |
+| Across the feedback resistor | — | 100 pF | 220 pF |
+| Output Zobel | 10 Ω + 470 nF | 10 Ω + 1 µF | 10 Ω + 1 µF |
+| Plate-to-plate RC | — | **4.7 kΩ + 2.2 nF** | 4.7 kΩ + 2.2 nF |
+| 20 kHz response / −3 dB bandwidth | −0.5 dB / 47 kHz | **−0.5 dB / 32 kHz** | −4.3 dB / 17 kHz |
+| Damping factor | 11.6 | 11.6 | 11.0 |
 
-120 組 OPT 網格的最壞情況，CPP 300 pF / CPS 1 nF（最低相位裕度 / 最低增益裕度（不及格組數））：
+Worst case over the 120-point OPT grid, CPP 300 pF / CPS 1 nF (lowest phase margin / lowest gain margin (failing combinations)):
 
-| 負載 | v1.4 | **v1.5** | v1.5-C |
+| Load | v1.4 | **v1.5** | v1.5-C |
 |---|---|---|---|
-| 4 Ω | 2° / −2.4 dB（14） | **33° / 20.4 dB（0）** | 56° / 33.3 dB（0） |
-| ELT 10 | 12° / 3.6 dB（2） | **57° / 29.5 dB（0）** | 70° / 23.9 dB（0） |
-| 不接負載 | 1° / −6.4 dB（22） | **31° / 25.9 dB（0）** | 55° / 23.8 dB（0） |
-| 只接 0.47 µF | 4° / −11.5 dB（94） | 1° / −4.3 dB（40） | 21° / 3.1 dB（0） |
-| 只接 2 µF | 1° / −8.1 dB（70） | 2° / −8.6 dB（60） | 0° / −2.5 dB（20） |
+| 4 Ω | 2° / −2.4 dB (14) | **33° / 20.4 dB (0)** | 56° / 33.3 dB (0) |
+| ELT 10 | 12° / 3.6 dB (2) | **57° / 29.5 dB (0)** | 70° / 23.9 dB (0) |
+| No load | 1° / −6.4 dB (22) | **31° / 25.9 dB (0)** | 55° / 23.8 dB (0) |
+| 0.47 µF only | 4° / −11.5 dB (94) | 1° / −4.3 dB (40) | 21° / 3.1 dB (0) |
+| 2 µF only | 1° / −8.1 dB (70) | 2° / −8.6 dB (60) | 0° / −2.5 dB (20) |
 
-嚴苛情況 CPP 1 nF / CPS 3 nF：v1.5 接 ELT 10 仍然 0 組不及格（36° / 21.7 dB），4 Ω 有 3 組、不接負載有 2 組不及格；v1.5-C 在 4 Ω、ELT 10、不接負載下都是 0 組。
+In the harsh case of CPP 1 nF / CPS 3 nF, v1.5 into the ELT 10 still has no failing combinations (36° / 21.7 dB), while 4 Ω has 3 and no load has 2; v1.5-C has none with 4 Ω, ELT 10 or no load.
 
-（這兩個表是 v4 管子模型的結果；v1.5 是用 v3 模型挑出來的，換模型後結論不變。）
+(Both tables are results with the v4 tube models; v1.5 was chosen with the v3 models, and the conclusion is unchanged after switching models.)
 
-#### v1.5 的代價
+#### What v1.5 costs
 
-- **頻寬**：47 kHz → 32 kHz，20 kHz 處 −0.5 dB；10 kHz 附近有 +0.2 dB 的小隆起。
-- **漏感很大時的隆起**：屏對屏 RC 會和 OPT 漏感形成諧振，漏感 160 mH（k = 0.998）時 17 kHz 附近 +4.5 dB（§4.3）。基準漏感 40 mH 時只有 +0.2 dB。
-- **高頻功率**：屏對屏 RC 在高頻是功率管的額外負載。輸出 10 W 正弦波時，4.7 kΩ 電阻消耗 0.06 W（1 kHz）、**4.9 W（10 kHz）**、**11.6 W（20 kHz）**（這組數字由輸出電壓決定，是 v3 模型時算的）；10 kHz 時 1 % THD 的最大輸出約 2 W（4 Ω，§4.5）。音樂的高頻能量通常比全功率正弦波小很多，但全功率高頻正弦測試要注意這顆電阻的功率。
-- **純電容負載**：只接電容、不接喇叭時，v1.5 的裕度很小（基準 OPT、沒有繞組電容時只接 2 µF：17° / 2.7 dB），加上繞組電容就會振盪。
+- **Bandwidth**: 47 kHz → 32 kHz, −0.5 dB at 20 kHz, with a small +0.2 dB bump near 10 kHz.
+- **A bump when leakage is large**: the plate-to-plate RC resonates with the OPT leakage inductance, giving +4.5 dB near 17 kHz at 160 mH leakage (k = 0.998) (§4.3). At the baseline 40 mH leakage it is only +0.2 dB.
+- **High-frequency power**: at high frequencies the plate-to-plate RC is an extra load on the power tubes. With a 10 W sine output, the 4.7 kΩ resistor dissipates 0.06 W (1 kHz), **4.9 W (10 kHz)** and **11.6 W (20 kHz)** (these numbers are set by the output voltage and were computed with the v3 models); at 10 kHz the maximum output at 1 % THD is about 2 W (4 Ω, §4.5). Music usually has far less high-frequency energy than a full-power sine wave, but full-power high-frequency sine tests need to watch this resistor's dissipation.
+- **Purely capacitive loads**: with a capacitor only and no speaker, v1.5 has a small margin (baseline OPT, no winding capacitance, 2 µF only: 17° / 2.7 dB), and adding winding capacitance makes it oscillate.
 
-#### 純電容負載的取捨
+#### The trade-off for purely capacitive loads
 
-只接電容（不接喇叭）的情況，在有繞組電容時三個版本都可能振盪；要讓它穩定，代價是頻寬。v1.5-C（階梯電容 1 nF、迴授並聯 220 pF）把只接 0.47 µF 的不及格組數從 40 降到 0，但 20 kHz 響應掉到 −4.3 dB，只接 2 µF 仍有 20 組不及格。
+With a capacitor only (no speaker) and winding capacitance present, all three versions can oscillate; making it stable costs bandwidth. v1.5-C (1 nF step capacitor, 220 pF across the feedback resistor) cuts the failing combinations with 0.47 µF only from 40 to 0, but its 20 kHz response drops to −4.3 dB, and 2 µF only still fails in 20 combinations.
 
-本設計的負載是 ELT 10，高頻時阻抗上升、接近不接負載，v1.5 在這種負載下裕度很大，所以**選 v1.5**。已知限制：做方波測試時要接電阻負載，不要只接電容。若之後更重視任意負載下的穩定度，可改用 v1.5-C（`CSTEP=1n CFB=220p`）。
+This design's load is the ELT 10, whose impedance rises at high frequencies and approaches no load; v1.5 has large margins with that kind of load, so **v1.5 is chosen**. Known limitation: square-wave tests should use a resistive load, never a capacitor alone. If stability into arbitrary loads becomes more important later, v1.5-C (`CSTEP=1n CFB=220p`) can be used instead.
 
-> **v1.5（2026-11-04）**：加入屏對屏 RC 4.7 kΩ + 2.2 nF（`RPZ`、`CPZ`）、Zobel 改為 10 Ω + 1 µF、迴授電阻並聯 100 pF（`CFB`），階梯網路 3.3 kΩ + 470 pF 不變。所有圖表與數據已重新產生。網表預設不加繞組電容（`CPP=1p CPS=1p`），與其他圖表一致；要加入時設 `CPP=300p CPS=1n`。
+> **v1.5 (2026-11-04)**: added a plate-to-plate RC of 4.7 kΩ + 2.2 nF (`RPZ`, `CPZ`), changed the Zobel to 10 Ω + 1 µF and put 100 pF across the feedback resistor (`CFB`); the 3.3 kΩ + 470 pF step network is unchanged. All figures and data regenerated. By default the netlist adds no winding capacitance (`CPP=1p CPS=1p`), consistent with the other figures; set `CPP=300p CPS=1n` to include it.
 >
-> ⚠️ 繞組電容用兩個集總電容近似，實際是分布參數；數值是假設。結論是「這個迴路對繞組電容敏感，需要屏對屏 RC 這類初級側的補償」，不是精確的振盪頻率。
+> ⚠️ The winding capacitance is approximated by two lumped capacitors, while the real thing is distributed, and the values are assumptions. The conclusion is that "this loop is sensitive to winding capacitance and needs primary-side compensation such as a plate-to-plate RC", not an exact oscillation frequency.
 
-### 4.9 功率管模型：datasheet 曲線多點擬合（v4）
+### 4.9 Power tube models: multi-point fit to datasheet curves (v4)
 
 ![Tube fit](docs/figures/fig22_tube_fit.png)
 
-v3 只依 6P3S datasheet 的一個工作點調整電流大小，曲線形狀仍是 Koren 的 6L6GC。v4 改用 datasheet 上的整組屏極特性曲線，6P3S-E 與 6P3P 分開擬合。
+v3 only scaled the current to match one operating point of the 6P3S datasheet; the curve shape was still Koren's 6L6GC. v4 uses the full set of plate characteristic curves from the datasheets, fitting the 6P3S-E and 6P3P separately.
 
-#### 資料
+#### Data
 
-| 管子 | 來源 | 曲線 | 點數 |
+| Tube | Source | Curves | Points |
 |---|---|---|---|
-| 6P3S-E | [kutilovo.cz 6P3S / 6P3S-E datasheet](https://www.kutilovo.cz/vincom/sheets/104316.pdf) | Ug2 = 250 V、Ug1 = +5 到 −30 V；Ug1 = 0、Ug2 = 50–250 V；Ua 到 320 V | 91 |
-| 6P3P | [r-type.org 6P3P（中國電子管手冊）](https://r-type.org/pdfs/6p3p.pdf) | Ug2 = 250 V、Ug1 = +10 到 −30 V；Ug1 = 0、Ug2 = 50–250 V；Ua 到 440 V | 129 |
+| 6P3S-E | [kutilovo.cz 6P3S / 6P3S-E datasheet](https://www.kutilovo.cz/vincom/sheets/104316.pdf) | Ug2 = 250 V, Ug1 = +5 to −30 V; Ug1 = 0, Ug2 = 50–250 V; Ua up to 320 V | 91 |
+| 6P3P | [r-type.org 6P3P (Chinese tube handbook)](https://r-type.org/pdfs/6p3p.pdf) | Ug2 = 250 V, Ug1 = +10 to −30 V; Ug1 = 0, Ug2 = 50–250 V; Ua up to 440 V | 129 |
 
-兩份都是掃描圖。我在瀏覽器裡把 PDF 繪成高解析度圖片，用格線校正座標，再逐欄找出曲線位置，讀值誤差約 2–3 mA；−25 V、−30 V 這種小電流的曲線較不準。另外加入各自的典型工作點（250 V / 250 V / −14 V，權重 ×4）。數位化資料在 `docs/data/tube_curves/`，擬合程式是 `tools/fit_tubes.py`。
+Both are scanned images. The PDFs were rendered to high-resolution images in a browser, the coordinates calibrated against the grid, and the curve positions read column by column, with a reading error of about 2–3 mA; low-current curves such as −25 V and −30 V are less accurate. Each tube's typical operating point (250 V / 250 V / −14 V, weight ×4) is also included. The digitized data is in `docs/data/tube_curves/`, and the fitting script is `tools/fit_tubes.py`.
 
-#### 模型與結果
+#### Model and results
 
-沿用 Koren 束射管的式子，另外加一個屏壓斜率項 `LAM`：datasheet 曲線在膝點之後仍隨屏壓上升，原本的式子做不出來（`LAM = 0` 就是原式）。μ、EX、KG1、KP、KVB、LAM 用最小平方法對 log(Ia) 擬合；KG2 由簾柵電流決定。
+The model keeps Koren's beam-tetrode equations and adds a plate-voltage slope term, `LAM`: the datasheet curves keep rising with plate voltage beyond the knee, which the original equations cannot reproduce (`LAM = 0` is the original form). μ, EX, KG1, KP, KVB and LAM are fitted by least squares on log(Ia); KG2 is set by the screen current.
 
-| | v3（兩管共用） | **6P3S-E v4** | **6P3P v4** |
+| | v3 (shared by both tubes) | **6P3S-E v4** | **6P3P v4** |
 |---|---|---|---|
 | μ / EX | 8.7 / 1.35 | 10.33 / 1.427 | 11.40 / 1.194 |
 | KG1 / KG2 | 1640 / 7500 | 1698 / 5510 | 766 / 3998 |
 | KP / KVB / LAM | 48 / 12 / 0 | 30.2 / 22.4 / 4.4 × 10⁻⁴ | 37.2 / 18.7 / 7.3 × 10⁻⁴ |
-| 對數化曲線的誤差（rms） | 12 %（6P3S-E）/ 16 %（6P3P） | **9.0 %** | **9.6 %** |
-| 250 / 250 / −14 V：Ia | 72.1 mA | 69.8 mA（datasheet 73 ± 13） | 69.9 mA（72 ± 14） |
-| 同上：Ig2 / 互導 / 屏極內阻 | 5.0 mA / 6.1 mA/V / — | 5.0 mA / 6.3 mA/V / 23 k | 3.0 mA / 6.6 mA/V / 18 k |
+| Error on log-scaled curves (rms) | 12 % (6P3S-E) / 16 % (6P3P) | **9.0 %** | **9.6 %** |
+| 250 / 250 / −14 V: Ia | 72.1 mA | 69.8 mA (datasheet 73 ± 13) | 69.9 mA (72 ± 14) |
+| Same point: Ig2 / transconductance / plate resistance | 5.0 mA / 6.1 mA/V / — | 5.0 mA / 6.3 mA/V / 23 k | 3.0 mA / 6.6 mA/V / 18 k |
 
-Python 的式子與 ngspice 的子電路在 4 個測試點上相差不到 0.01 %（`fit_tubes.py` 會自動核對）。
+The Python equations and the ngspice subcircuit agree to within 0.01 % at 4 test points (`fit_tubes.py` checks this automatically).
 
-#### 對設計的影響
+#### Effect on the design
 
-- **偏壓**：同樣 34.4 mA，偏壓從 −40.9 V 變成 **−42.9 V**（立體聲網表接上電源後 −43.0 V，可變電阻位置 0.598）。
-- **失真變高**：1 kHz、10 W 時 THD 從 0.09 % 變成 **0.28 %**，增加的主要是三次諧波（交越失真）。原因是 KP 從 48 降到約 30：KP 決定接近截止時電流怎麼下降，正是 AB 類推挽交越的地方。
-- **增益、阻尼因數**：24.7 → 24.2 倍、13.6 → 11.6（屏極內阻變低）。
-- **最大輸出**：1 kHz 約 24 W（原 25 W）。10 kHz 時 1 % THD 只剩約 2 W（v3 模型時約 8 W，§4.5），也是交越失真的關係。
+- **Bias**: for the same 34.4 mA the bias goes from −40.9 V to **−42.9 V** (−43.0 V in the stereo netlist on the supply model, pot position 0.598).
+- **Higher distortion**: THD at 1 kHz, 10 W goes from 0.09 % to **0.28 %**, mostly added third harmonic (crossover distortion). The cause is KP falling from 48 to about 30: KP sets how the current falls near cutoff, which is exactly where class AB push-pull crosses over.
+- **Gain, damping factor**: 24.7 → 24.2×, 13.6 → 11.6 (lower plate resistance).
+- **Maximum output**: about 24 W at 1 kHz (previously 25 W). At 10 kHz only about 2 W remains at 1 % THD (about 8 W with the v3 models, §4.5), also because of crossover distortion.
 
-**失真對截止區的擬合很敏感**：KP 主要由 −20 到 −30 V 的小電流曲線決定，而那正是數位化最不準的部分。改變這些點的權重（不用、×0.5、×1、×2），KP 落在 30–40 之間；在電路裡，KP = 30 / 35 / 40 時 10 W 失真約 0.27 / 0.20 / 0.15 %，需要的偏壓約 −42.9 / −40.1 / −38.1 V。所以 v4 的失真與偏壓數字是「datasheet 曲線指向的量級」，不是精確值；要更準，需要截止區附近的實測曲線。
+**Distortion is sensitive to how the cutoff region is fitted**: KP is set mainly by the low-current curves from −20 to −30 V, which are exactly the least accurate part of the digitization. Changing the weight of those points (none, ×0.5, ×1, ×2) puts KP between 30 and 40; in the circuit, KP = 30 / 35 / 40 gives about 0.27 / 0.20 / 0.15 % distortion at 10 W and needs about −42.9 / −40.1 / −38.1 V of bias. So the v4 distortion and bias figures are "the order of magnitude the datasheet curves point to", not exact values; better accuracy would need measured curves near cutoff.
 
-#### 6P3S-E 與 6P3P
+#### 6P3S-E vs 6P3P
 
-兩支管子在這個電路裡的差別很小（理想 400 V 電源、各自調到 34.4 mA）：
+The two tubes differ very little in this circuit (ideal 400 V supply, each set to 34.4 mA):
 
 | | 6P3S-E | 6P3P |
 |---|---|---|
-| 需要的偏壓 | −42.9 V | −40.6 V |
-| 1 kHz THD：0.7 W / 7 W / 15 W | 0.045 / 0.23 / 0.32 % | 0.046 / 0.21 / 0.26 % |
-| 1 kHz、1 % THD 功率 | 24.2 W | 24.0 W |
+| Bias needed | −42.9 V | −40.6 V |
+| THD at 1 kHz: 0.7 W / 7 W / 15 W | 0.045 / 0.23 / 0.32 % | 0.046 / 0.21 / 0.26 % |
+| Power at 1 kHz, 1 % THD | 24.2 W | 24.0 W |
 
-網表預設用 6P3S-E；要換成 6P3P，把 `X5`、`X6` 的模型名稱改成 `6P3P`，並把 `KGA`、`KGB` 改成 766（因為網表用 `KG1={KGA}` 覆寫了模型的預設值），偏壓改為約 −40.6 V。
+The netlist uses the 6P3S-E by default. To switch to the 6P3P, change the model name of `X5` and `X6` to `6P3P`, set `KGA` and `KGB` to 766 (the netlist overrides the model default with `KG1={KGA}`), and change the bias to about −40.6 V.
 
-> 限制：膝點附近（屏壓 100 V 以下）的誤差約 14 %，模型的電流偏低，所以削波功率可能略為保守；Ug1 = 0 的大電流曲線在高屏壓區被斜率項外插得偏高。曲線是 datasheet 的典型值，不是個體實測；個體差異仍用 `KG1`、`μ` 模擬（§4.6）。
+> Limits: near the knee (plate voltage below 100 V) the error is about 14 % with the model current on the low side, so the clipping power may be slightly conservative; the high-current Ug1 = 0 curve is extrapolated too high at high plate voltage by the slope term. The curves are datasheet typical values, not measurements of individual tubes; sample spread is still modelled with `KG1` and `μ` (§4.6).
 
-### 4.10 OPT 鐵心飽和
+### 4.10 OPT core saturation
 
 ![OPT core saturation](docs/figures/fig21_opt_saturation.png)
 
-基準網表的 OPT 是線性耦合電感：初級電感固定 40 H，鐵心永遠不會飽和。真實的鐵心在低頻、大訊號時磁通變大，接近飽和時電感急速下降；功率管直流不平衡時，鐵心裡還會多一個固定的直流磁通。這一節換用另一個 OPT 模型 `models/opt_sat.inc` 來看這兩件事。原始數據在 `docs/data/fig21_opt_saturation.csv`。
+The OPT in the baseline netlist is a set of linear coupled inductors: the primary inductance is fixed at 40 H and the core never saturates. In a real core the flux grows at low frequencies and large signals, and the inductance falls sharply near saturation; with DC unbalance between the power tubes there is also a fixed DC flux in the core. This section uses a separate OPT model, `models/opt_sat.inc`, to look at both. Raw data is in `docs/data/fig21_opt_saturation.csv`.
 
-#### 模型
+#### Model
 
-把 OPT 寫成磁路，而不是耦合電感：
+The OPT is written as a magnetic circuit instead of coupled inductors:
 
-- 每個繞組的電壓 = 圈數 × 磁通變化率，再加上各自的漏感與銅阻。圈數比、漏感、銅阻都和線性模型相同。
-- 鐵心的總磁動勢 = 各繞組圈數 × 電流的總和。兩支功率管的直流電流不一樣時，差額會自動留在磁動勢裡，形成直流磁通。
-- 磁通與磁動勢的關係用一條飽和曲線：小訊號時是一般電感，接近飽和磁通 `LSAT` 時電感急速下降（曲線的轉折銳利度 `PSH = 4`）。
+- Each winding's voltage = turns × rate of change of flux, plus its own leakage inductance and copper resistance. Turns ratios, leakage and copper resistance are the same as in the linear model.
+- The core's total MMF = the sum of each winding's turns × current. When the two power tubes draw different DC currents, the difference stays in the MMF automatically and becomes a DC flux.
+- Flux versus MMF follows a saturation curve: at small signals it behaves as an ordinary inductor, and near the saturation flux `LSAT` the inductance falls sharply (knee sharpness `PSH = 4`).
 
-驗證：把 `LSAT` 設成很大（等於不會飽和），1 kHz 失真、增益、頻寬、相位 / 增益裕度都和基準網表相同到小數點後 4 位。
+Validation: with `LSAT` set very large (no saturation), 1 kHz distortion, gain, bandwidth and phase / gain margins match the baseline netlist to 4 decimal places.
 
-鐵心參數全部是假設，所以用兩個掃描參數描述：
+The core parameters are all assumed, so they are described by two swept parameters:
 
-| 參數 | 意義 | 掃描範圍 |
+| Parameter | Meaning | Sweep range |
 |---|---|---|
-| 飽和頻率 | 25 W 正弦波在這個頻率時，磁通剛好到達 `LSAT` | 12、20、30、40 Hz（基準 20 Hz） |
-| 鐵心電感倍數 `LMUL` | 鐵心在工作磁通下的電感 ÷ 40 H。未開氣隙的矽鋼片在中等磁通時，導磁率常比小訊號時高好幾倍 | 1、3、10 倍 |
+| Saturation frequency | The frequency at which a 25 W sine wave just brings the flux to `LSAT` | 12, 20, 30, 40 Hz (baseline 20 Hz) |
+| Core inductance multiplier `LMUL` | Core inductance at working flux ÷ 40 H. Ungapped silicon-steel laminations often have several times their small-signal permeability at moderate flux | 1, 3, 10× |
 
-沒有模擬磁滯與鐵損。
+Hysteresis and core loss are not modelled.
 
-#### 低頻最大功率（圖 a，1 % THD）
+#### Low-frequency maximum power (figure a, 1 % THD)
 
-| 頻率 | 線性鐵心 | 20 Hz 飽和 | 30 Hz 飽和 | 40 Hz 飽和 |
+| Frequency | Linear core | Saturates at 20 Hz | Saturates at 30 Hz | Saturates at 40 Hz |
 |---|---|---|---|---|
 | 20 Hz | 17.0 W | 16.4 W | **7.6 W** | **4.3 W** |
 | 25 Hz | 19.1 W | 19.0 W | 11.9 W | 6.7 W |
 | 30 Hz | 20.8 W | 20.8 W | 17.8 W | 10.1 W |
 | 40 Hz | 22.1 W | 22.1 W | 22.1 W | 18.9 W |
 | 60 Hz | 23.2 W | 23.2 W | 23.2 W | 23.2 W |
-| 100 Hz 以上 | 24.1–24.7 W | 同左 | 同左 | 同左 |
+| 100 Hz and above | 24.1–24.7 W | same | same | same |
 
-- 即使鐵心不飽和，20 Hz 的最大功率也只有 17 W：40 H 在 20 Hz 的感抗約 5 kΩ，和 6 kΩ 的負載差不多大，功率管要多推一份磁化電流。
-- 鐵心在 20 Hz 以下才飽和時，影響很小；若 30–40 Hz 就飽和，20–30 Hz 的功率會掉到一半以下。MC34-B 的實際數值未知，這張表可以拿來對照它標示的低頻功率規格。
+- Even without saturation, maximum power at 20 Hz is only 17 W: 40 H has about 5 kΩ of reactance at 20 Hz, comparable to the 6 kΩ load, so the power tubes have to supply an extra magnetizing current.
+- If the core saturates only below 20 Hz the effect is small; if it saturates at 30–40 Hz, power at 20–30 Hz falls to less than half. The real MC34-B values are unknown; this table can be compared against its stated low-frequency power rating.
 
-#### 低頻失真（圖 b，鐵心 20 Hz 飽和）
+#### Low-frequency distortion (figure b, core saturating at 20 Hz)
 
-| | 線性鐵心 | 20 Hz 飽和 |
+| | Linear core | Saturates at 20 Hz |
 |---|---|---|
-| 20 Hz、約 10 W | 0.48 % | **0.58 %**（三次諧波 0.57 %） |
-| 20 Hz、約 13 W | 0.52 % | **0.75 %** |
-| 30 Hz、約 14 W | 0.40 % | 0.44 % |
-| 50 Hz 以上 | — | 和線性鐵心差不到 0.01 % |
+| 20 Hz, about 10 W | 0.48 % | **0.58 %** (third harmonic 0.57 %) |
+| 20 Hz, about 13 W | 0.52 % | **0.75 %** |
+| 30 Hz, about 14 W | 0.40 % | 0.44 % |
+| 50 Hz and above | — | within 0.01 % of the linear core |
 
-兩管平衡時，飽和是上下對稱的，所以增加的主要是三次諧波。
+With the two tubes balanced, saturation is symmetrical, so what is added is mostly third harmonic.
 
-#### 直流不平衡（圖 c、d，30 Hz、約 10 W、鐵心 20 Hz 飽和）
+#### DC unbalance (figures c, d; 30 Hz, about 10 W, core saturating at 20 Hz)
 
-| 直流不平衡 | 電感 ×1（40 H） | ×3（120 H） | ×10（400 H） |
+| DC unbalance | Inductance ×1 (40 H) | ×3 (120 H) | ×10 (400 H) |
 |---|---|---|---|
 | 0 | 0.37 % | 0.25 % | 0.24 % |
 | 10 mA | 0.37 % | 0.25 % | 0.24 % |
 | 20 mA | 0.37 % | 0.27 % | 0.24 % |
 | 25 mA | 0.37 % | 0.28 % | 0.27 % |
-| 30 mA | 0.38 % | 0.31 %（二次諧波 0.10 %） | **3.1 %**（二次諧波 1.3 %） |
+| 30 mA | 0.38 % | 0.31 % (second harmonic 0.10 %) | **3.1 %** (second harmonic 1.3 %) |
 
-- 直流磁通 = 鐵心電感 × 直流不平衡，所以**鐵心電感越大，越怕直流不平衡**。電感倍數 1 時 30 mA 也幾乎沒影響；倍數 10 時 25 mA 以下還好，到 30 mA 直流磁通已經把鐵心推到飽和邊緣，失真跳到 3 %，而且以二次諧波為主。
-- 圖 d 是磁化電流（磁動勢）的波形：有 20 mA 不平衡時整條波形往上偏，正半周先碰到飽和而變尖，負半周則較平緩，這就是二次諧波的來源。
-- 鐵心電感越大，平衡時的低頻失真反而越低（0.37 % → 0.24 %），因為磁化電流變小。
-- 對照 §4.6：偏壓固定不調時，200 台中 OPT 直流不平衡的 95 % 落在 15 mA 以內、最大 27 mA；逐管調偏壓後最大 0.2 mA。依這裡的結果，調過偏壓的機器完全不受影響；不調偏壓時，少數不平衡特別大的機器，在鐵心電感大的情況下低頻失真會明顯上升。
+- DC flux = core inductance × DC unbalance, so **the larger the core inductance, the more sensitive it is to DC unbalance**. With multiplier 1, even 30 mA has almost no effect; with multiplier 10 it is fine up to 25 mA, but at 30 mA the DC flux has pushed the core to the edge of saturation and distortion jumps to 3 %, mostly second harmonic.
+- Figure d shows the magnetizing current (MMF) waveform: with 20 mA of unbalance the whole waveform shifts upward, the positive half reaches saturation first and becomes peaked while the negative half stays smoother; this is where the second harmonic comes from.
+- The larger the core inductance, the lower the low-frequency distortion when balanced (0.37 % → 0.24 %), because the magnetizing current is smaller.
+- Compared with §4.6: with fixed, unadjusted bias, 95 % of the 200 amplifiers have OPT DC unbalance within 15 mA and the maximum is 27 mA; after per-tube bias adjustment the maximum is 0.2 mA. By these results, amplifiers with adjusted bias are not affected at all; without adjustment, the few amplifiers with especially large unbalance show clearly higher low-frequency distortion when the core inductance is large.
 
-**結論**
+**Conclusions**
 
-1. 鐵心飽和對這台機器的影響集中在 40 Hz 以下；它主要決定低頻最大功率，所以 OPT 的低頻規格（飽和頻率）比初級電感更重要。
-2. 逐管調偏壓（§4.6）也能避免直流不平衡造成的飽和；把不平衡調到 1 mA 以內，在所有假設下都看不出差異。
-3. 數值取決於假設的鐵心參數；結論是趨勢與量級，不是 MC34-B 的實際表現。
+1. Core saturation affects this amplifier only below 40 Hz; it mainly sets the low-frequency maximum power, so the OPT's low-frequency rating (saturation frequency) matters more than its primary inductance.
+2. Per-tube bias adjustment (§4.6) also prevents saturation from DC unbalance; with the unbalance trimmed to within 1 mA, no difference is visible under any of the assumptions.
+3. The numbers depend on the assumed core parameters; the conclusions are trends and orders of magnitude, not the actual behaviour of the MC34-B.
 
-> 如何使用：`python tools/make_figures.py fig21` 會重跑這一節，並產生可直接用的網表 `simulations/ltspice/amp_channel_v1_sat.cir`（`amp_channel_v1.cir` 換上 `opt_sat.inc`，參數 `LSAT`、`PSH`、`LMUL`、`IDCX` 在 `.param` 中；`IDCX` 是額外加入的等效直流不平衡）。這個網表只在 ngspice 驗證過。
+> How to use: `python tools/make_figures.py fig21` reruns this section and produces a ready-to-use netlist, `simulations/ltspice/amp_channel_v1_sat.cir` (`amp_channel_v1.cir` with `opt_sat.inc` substituted; the parameters `LSAT`, `PSH`, `LMUL` and `IDCX` are in `.param`; `IDCX` is an extra equivalent DC unbalance). This netlist has only been verified in ngspice.
 
-## 5. 目錄結構
+## 5. Directory layout
 
 ```
 mc34b-mod/
-├── models/                 SPICE 模型 (tubes_amp.inc)、ELT 10 估計模型 (elt10_est.inc)、
-│                           可飽和鐵心 OPT (opt_sat.inc)
+├── .github/                issue and pull request templates
+├── assets/                 README banner
+├── models/                 SPICE models (tubes_amp.inc), ELT 10 estimated model (elt10_est.inc),
+│                           saturable-core OPT (opt_sat.inc)
 ├── simulations/
-│   ├── ltspice/            amp_channel_v1.cir（單聲道）、psu_v1.cir（電源）、
-│   │                       amp_stereo_psu_v1.cir（自動產生，勿手改）、curves_*.cir、
-│   │                       amp_channel_v1.asc + mc34b_*.asy（圖形化電路圖，自動產生）、
-│   │                       amp_channel_v1_sat.cir（可飽和鐵心版，自動產生）
-│   └── psud2/              PSUD2 輸入表 (README.md) 與 .psu 檔
+│   ├── ltspice/            amp_channel_v1.cir (mono), psu_v1.cir (power supply),
+│   │                       amp_stereo_psu_v1.cir (generated, do not edit by hand), curves_*.cir,
+│   │                       amp_channel_v1.asc + mc34b_*.asy (schematic, generated),
+│   │                       amp_channel_v1_sat.cir (saturable-core version, generated)
+│   └── psud2/              PSUD2 input table (README.md) and .psu file
 ├── docs/
-│   ├── figures/            模擬圖表（tools/make_figures.py 產生）
-│   └── data/               掃描結果 CSV（與圖同時產生）；tube_curves/ 是 datasheet 曲線數位化資料
-├── tools/                  make_figures.py（重新產生 docs/figures）、make_schematic.py（產生 .asc）、
-│                           fit_tubes.py（功率管 datasheet 擬合）
-├── README.md               設計說明與模擬結果
-├── TODO.md                 待辦事項
-├── CLAUDE.md               給 Claude / 協作者的工作說明
+│   ├── figures/            simulation figures (generated by tools/make_figures.py)
+│   └── data/               sweep results as CSV (generated with the figures); tube_curves/ holds digitized datasheet curves
+├── tools/                  make_figures.py (regenerates docs/figures), make_schematic.py (generates the .asc),
+│                           fit_tubes.py (power tube datasheet fit)
+├── README.md               this file (English)
+├── README.zh-TW.md         Traditional Chinese version
+├── TODO.md                 to-do list
+├── CLAUDE.md               working notes for Claude / collaborators
+├── CONTRIBUTING.md         contributing guide
+├── CODE_OF_CONDUCT.md      code of conduct
+├── SECURITY.md             security policy
+├── LICENSE
 └── .gitignore
 ```
 
-## 6. 如何執行模擬
+## 6. Running the simulations
 
-1. 用 LTspice 開啟 `simulations/ltspice/amp_channel_v1.cir`（File → Open，檔案類型選 All Files），按 **Run**。
-2. 波形視窗加入 `V(out)`；THD 與功率結果在 **View → SPICE Error Log**。
-3. 參數都集中在網表上方的 `.param` 區塊；可用 `.step param VB list -38 -42 -46` 掃描偏壓，或 `.step param KC list 0.998 0.9995` 掃描 OPT 耦合係數。
-4. 要看直流工作點，在 `.tran` 前加 `.op`。屏耗 = V(pa) × V(ka)（RKO = 1 Ω，V(ka) 的數值即陰極電流）。
-5. `curves_*.cir` 用來畫各管的屏極特性曲線，檢查模型是否合理。
-6. `psu_v1.cir`：電源單獨模擬（B+ 用定電流負載，與 PSUD2 相同；偏壓匯流排接等效電阻 `RBLOAD`）。改 `ILOAD`、`MAINS` 看不同情境。
-7. `amp_stereo_psu_v1.cir`：電源 + 兩個聲道。它由 `python tools/make_figures.py stereo` 從前兩個檔案產生，要改電路請改來源檔再重新產生。冷機開機模擬請加 `.options method=gear`，並拿掉 `.ic` 行。
-8. 功率管不匹配：`amp_channel_v1.cir` 中的 `KGA`、`KGB` 分別是兩支功率管的 KG1；`DVB` 是 V4 相對 V3 的偏壓差（逐管調偏壓）。其他管子的參數可在實例後面加，例如 `X1 v1a ing v1k 6N2 KG1=1600 MU=95`。
-9. 敏感度：`VBPLUS`、`RAA`、`TU`、`LH`、`KC` 都在 `amp_channel_v1.cir` 的 `.param` 中，可用 `.step param RAA list 5k 6k 6.6k` 這類語法掃描。
-10. 只重畫敏感度圖（不重跑模擬）：`python tools/make_figures.py plot11 plot12`。
-11. 負載：`RL` 是電阻負載（`1e6` = 不接），容性負載可在網表加一行 `CLD out 0 2u`。迴路增益的量法見 `tools/make_figures.py` 的 `loop_gain()`。
-12. 接 ELT 10 估計模型：`.param SPK=1` 並把 `RL` 設成 `1e6`。喇叭參數在 `models/elt10_est.inc` 的註解與 `PARAMS:` 中，可自行修改。
-13. OPT 繞組電容：`CPP`（屏對屏）、`CPS`（初次級，平均分到兩端）；預設 1 pF = 不加。例：`.param CPP=300p CPS=1n`。屏對屏 RC 是 `RPZ`、`CPZ`（`RPZ=1e9` = 拿掉，即 v1.4）。
-14. 圖形化電路圖：LTspice 開啟 `simulations/ltspice/amp_channel_v1.asc`（同資料夾的 `mc34b_*.asy` 是管子與喇叭的符號）。每個接腳都用網路標籤（net label）連到網表的節點名稱，所以畫面上沒有導線，但電路與 `.cir` 完全相同。它由 `python tools/make_schematic.py` 從 `.cir` 產生，並會自動反向比對每個元件的節點；改電路請改 `.cir` 再重新產生。
+1. Open `simulations/ltspice/amp_channel_v1.cir` in LTspice (File → Open, file type All Files) and press **Run**.
+2. Add `V(out)` to the waveform window; THD and power results are in **View → SPICE Error Log**.
+3. All parameters are in the `.param` block at the top of the netlist. Sweep the bias with `.step param VB list -38 -42 -46`, or the OPT coupling coefficient with `.step param KC list 0.998 0.9995`.
+4. For the DC operating point, add `.op` before `.tran`. Plate dissipation = V(pa) × V(ka) (RKO = 1 Ω, so the value of V(ka) is the cathode current).
+5. `curves_*.cir` plot each tube's plate characteristics, to check that the models are reasonable.
+6. `psu_v1.cir`: the power supply on its own (B+ with a constant-current load, as in PSUD2; the bias bus has an equivalent resistor `RBLOAD`). Change `ILOAD` and `MAINS` to try different scenarios.
+7. `amp_stereo_psu_v1.cir`: the supply plus both channels. It is generated from the two files above by `python tools/make_figures.py stereo`; to change the circuit, edit the source files and regenerate. For a cold-start simulation add `.options method=gear` and remove the `.ic` line.
+8. Power tube mismatch: in `amp_channel_v1.cir`, `KGA` and `KGB` are the KG1 of the two power tubes; `DVB` is V4's bias offset relative to V3 (per-tube bias adjustment). Parameters for other tubes can be added after the instance, for example `X1 v1a ing v1k 6N2 KG1=1600 MU=95`.
+9. Sensitivity: `VBPLUS`, `RAA`, `TU`, `LH` and `KC` are all in the `.param` block of `amp_channel_v1.cir` and can be swept with syntax like `.step param RAA list 5k 6k 6.6k`.
+10. To redraw only the sensitivity figures (without rerunning the simulations): `python tools/make_figures.py plot11 plot12`.
+11. Load: `RL` is the resistive load (`1e6` = not connected); add a capacitive load with a netlist line such as `CLD out 0 2u`. How loop gain is measured is in `loop_gain()` in `tools/make_figures.py`.
+12. To connect the ELT 10 estimated model: `.param SPK=1` and set `RL` to `1e6`. The speaker parameters are in the comments and `PARAMS:` of `models/elt10_est.inc` and can be edited.
+13. OPT winding capacitance: `CPP` (plate to plate), `CPS` (primary to secondary, split across both ends); default 1 pF = not added. Example: `.param CPP=300p CPS=1n`. The plate-to-plate RC is `RPZ`, `CPZ` (`RPZ=1e9` = removed, i.e. v1.4).
+14. Schematic: open `simulations/ltspice/amp_channel_v1.asc` in LTspice (the `mc34b_*.asy` files in the same folder are the tube and speaker symbols). Every pin is connected to the netlist's node names by net labels, so there are no wires on screen, but the circuit is identical to the `.cir`. It is generated from the `.cir` by `python tools/make_schematic.py`, which also cross-checks every component's nodes; to change the circuit, edit the `.cir` and regenerate.
 
-15. OPT 鐵心飽和：`amp_channel_v1_sat.cir`，或在腳本中用 `channel(OPT="sat", LSAT=..., LMUL=..., IDCX=...)`（§4.10）。長時間的掃描可設環境變數 `MF_CACHE=<資料夾>`，把每次 ngspice 的結果存起來，中斷後重跑會跳過已完成的部分。
+15. OPT core saturation: `amp_channel_v1_sat.cir`, or `channel(OPT="sat", LSAT=..., LMUL=..., IDCX=...)` in the script (§4.10). For long sweeps, set the environment variable `MF_CACHE=<folder>` to store each ngspice result; rerunning after an interruption skips the parts already done.
 
-16. 功率管擬合：`python tools/fit_tubes.py` 會讀 `docs/data/tube_curves/*.csv`、擬合、印出參數並與 ngspice 的子電路核對，再畫圖 22（需要 scipy）。擬合結果要手動寫回 `models/tubes_amp.inc` 的 `PARAMS:`，並重新調整偏壓（`VB`、`WA` / `WB`）。
+16. Power tube fit: `python tools/fit_tubes.py` reads `docs/data/tube_curves/*.csv`, fits, prints the parameters, checks them against the ngspice subcircuit and draws figure 22 (needs scipy). The fitted values have to be written back by hand to `PARAMS:` in `models/tubes_amp.inc`, and the bias readjusted (`VB`, `WA` / `WB`).
 
-**重新產生圖表**（需要 [ngspice](https://ngspice.sourceforge.io/) 與 Python 的 numpy、matplotlib）：
+**Regenerating the figures** (needs [ngspice](https://ngspice.sourceforge.io/) and Python with numpy and matplotlib):
 
 ```powershell
 pip install numpy matplotlib
-python tools/make_figures.py            # 全部
-python tools/make_figures.py fig4 fig5  # 只更新部分
-python tools/make_schematic.py          # 重新產生 LTspice 電路圖
+python tools/make_figures.py            # everything
+python tools/make_figures.py fig4 fig5  # only some
+python tools/make_schematic.py          # regenerate the LTspice schematic
 ```
 
-## 7. Commit 慣例
+## 7. Commit conventions
 
 ```
-feat(sim):    新增 / 修改模擬
-fix(model):   修正 SPICE 模型
-docs(fig):    更新圖表
-docs:         更新說明文件（README、TODO、CLAUDE.md）
-chore:        目錄、設定等雜項
+feat(sim):    add / change a simulation
+fix(model):   fix a SPICE model
+docs(fig):    update figures
+docs:         update documentation (README, TODO, CLAUDE.md)
+chore:        folders, configuration and other housekeeping
 ```
 
-## 8. 參考
+## 8. References
 
-- N. Koren, *Improved vacuum tube models for SPICE simulations*（6L6GC 參數）
-- Mullard, *Circuits for Audio Amplifiers*（5-20 直耦長尾對架構）
+- N. Koren, *Improved vacuum tube models for SPICE simulations* (6L6GC parameters)
+- Mullard, *Circuits for Audio Amplifiers* (the 5-20 direct-coupled long-tail pair topology)
 - [Elac ELT 10 – HiFi-Wiki](https://hifi-wiki.com/index.php/Elac_ELT_10)
-- [6P3S – Radiomuseum](https://www.radiomuseum.org/tubes/tube_6p3s.html)（6P3S-E datasheet 工作點）
-- [6P3S / 6P3S-E datasheet（kutilovo.cz）](https://www.kutilovo.cz/vincom/sheets/104316.pdf)（6P3S-E 擬合用的屏極曲線）
-- [6P3P datasheet（r-type.org，中國電子管手冊）](https://r-type.org/pdfs/6p3p.pdf)（6P3P 擬合用的屏極曲線）
+- [6P3S – Radiomuseum](https://www.radiomuseum.org/tubes/tube_6p3s.html) (6P3S-E datasheet operating point)
+- [6P3S / 6P3S-E datasheet (kutilovo.cz)](https://www.kutilovo.cz/vincom/sheets/104316.pdf) (plate curves used to fit the 6P3S-E)
+- [6P3P datasheet (r-type.org, Chinese tube handbook)](https://r-type.org/pdfs/6p3p.pdf) (plate curves used to fit the 6P3P)

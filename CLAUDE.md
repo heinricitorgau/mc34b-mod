@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-給 Claude（與其他協作者）的工作說明。使用者以繁體中文溝通，README、TODO 與回覆都用繁體中文；程式碼、網表註解與圖表文字用英文。
+給 Claude（與其他協作者）的工作說明。使用者以繁體中文溝通，TODO 與回覆用繁體中文；README 有英文（`README.md`）與繁體中文（`README.zh-TW.md`）兩版，內容要同步；程式碼、網表註解與圖表文字用英文。
 
 ## 專案性質
 
@@ -22,7 +22,7 @@
 | `simulations/ltspice/amp_channel_v1_sat.cir` | 單聲道 + 可飽和鐵心 OPT | **否**，由 `make_figures.py sat` / `fig21` 產生 |
 | `simulations/ltspice/amp_channel_v1.asc`、`mc34b_*.asy` | LTspice 圖形化電路圖 | **否**，由 `make_schematic.py` 產生 |
 | `docs/figures/*.png`、`docs/data/*.csv` | 圖表與數據 | **否**，由 `make_figures.py` 產生 |
-| `README.md` | 設計說明與所有模擬結果 | 可 |
+| `README.md`、`README.zh-TW.md` | 設計說明與所有模擬結果（英文 / 繁體中文，兩版行對行對應，改一版就要改另一版） | 可 |
 | `TODO.md` | 待辦事項（README 不放待辦） | 可 |
 
 `tools/make_figures.py` 讀取 `amp_channel_v1.cir` 的電路區段，用 regex 覆寫 `.param`，再附加 ngspice 分析指令；它會在暫存目錄寫 `.spiceinit`（`set ngbehavior=ltpsa`），讓 ngspice 接受 LTspice 語法。
@@ -32,7 +32,7 @@
 1. 改 `amp_channel_v1.cir`（或模型、`psu_v1.cir`）。新增可調值時用 `.param`，並沿用慣例：`1p` 代表電容「不加」，`1e9` 代表電阻「拿掉」（例：`RPZ=1e9` 即 v1.4）。
 2. `python tools/make_schematic.py`：重新產生 `.asc`，輸出必須是 `0 mismatches`。
 3. `python tools/make_figures.py`（全部，約 1–2 小時）或 `python tools/make_figures.py fig4 fig14`（部分）。立體聲相關的圖（8、9、10、19）每張要數分鐘到數十分鐘。
-4. 依 `docs/data/*.csv` 與腳本印出的數值更新 README 的表格與文字；**數字一定要從 CSV / 輸出讀，不要估**。改版時在對應章節加一段「> **v1.x（日期）**：……」說明改了什麼、為什麼。
+4. 依 `docs/data/*.csv` 與腳本印出的數值更新兩版 README 的表格與文字；**數字一定要從 CSV / 輸出讀，不要估**。改版時在對應章節加一段「> **v1.x（日期）**：……」說明改了什麼、為什麼。
 5. 更新 `TODO.md`。
 
 改功率管模型時：`python tools/fit_tubes.py` 擬合後把參數寫回 `tubes_amp.inc`，同時更新 `amp_channel_v1.cir` 的 `KGA` / `KGB`（實例用 `KG1={KGA}` 覆寫模型預設值）與 `make_figures.py` 的 `NOM`、圖 9 / 18 / 19 的 KG1 數值。
