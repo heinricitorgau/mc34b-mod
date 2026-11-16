@@ -34,7 +34,7 @@ TUBES = {   # name: (data file, screen current at 250/250/-14 (A), where that va
     "6P3S-E": ("6P3S_kutilovo.csv", 5.0e-3, "6P3S-E sheet: max 6 mA; 5 mA assumed typical"),
     "6P3P": ("6P3P_r-type.csv", None, "dashed Ig2 curve on the 6P3P sheet: about 10 mA at Ug1 = 0, Ua >= 200 V"),
 }
-V3 = dict(MU=8.7, EX=1.35, KG1=1640, KP=48, KVB=12, LAM=0)    # previous single-point fit (README 4.9)
+V3 = dict(MU=8.7, EX=1.35, KG1=1640, KP=48, KVB=12, LAM=0)    # previous single-point fit (docs/DESIGN.md 4.9)
 PK = ("MU", "EX", "KG1", "KP", "KVB", "LAM")
 
 
