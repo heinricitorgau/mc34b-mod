@@ -1,0 +1,28 @@
+cff-version: 1.2.0
+message: "If you use this work, please cite it as below."
+type: software
+title: "mc34b-mod: a simulated 6P3S-E push-pull ultralinear tube amplifier, with stability, supply and tolerance studies"
+authors:
+  - family-names: Kao
+    given-names: En-Tsai
+    alias: heinricitorgau
+license: MIT
+repository-code: "https://github.com/heinricitorgau/mc34b-mod"
+abstract: >-
+  A simulation-only design study of a fixed-bias 6P3S-E push-pull ultralinear
+  stereo tube amplifier (6N2 voltage amplifier, direct-coupled 6N1 long-tail
+  pair) in LTspice and ngspice, taking the transformer specifications of the
+  Ming-Da MC34-B as assumptions and an ELAC ELT 10 as the load. Includes tube
+  models fitted to digitized datasheet curves, loop-stability analysis over a
+  grid of output-transformer assumptions, power-supply and mains-variation
+  simulation, Monte Carlo tube spread, and output-transformer saturation.
+  Every figure is regenerated from the netlists by script.
+keywords:
+  - vacuum tube amplifier
+  - SPICE
+  - ngspice
+  - LTspice
+  - circuit simulation
+  - loop stability
+  - Monte Carlo
+  - audio

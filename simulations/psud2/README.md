@@ -55,4 +55,4 @@
 
 ## 接到擴大機上（完整立體聲模擬）
 
-`simulations/ltspice/amp_stereo_psu_v1.cir` 把這個電源接上兩個完整聲道（由 `tools/make_figures.py` 自動產生），結果見主 README §4.2。
+`simulations/ltspice/amp_stereo_psu_v1.cir` 把這個電源接上兩個完整聲道（由 `tools/make_figures.py` 自動產生），結果見 [docs/DESIGN §4.2](../../docs/DESIGN.zh-TW.md)。
