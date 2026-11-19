@@ -60,7 +60,7 @@ mc34b-mod/
 
 16. Power tube fit: `python tools/fit_tubes.py` reads `docs/data/tube_curves/*.csv`, fits, prints the parameters, checks them against the ngspice subcircuit and draws figure 22 (needs scipy). The fitted values have to be written back by hand to `PARAMS:` in `models/tubes_amp.inc`, and the bias readjusted (`VB`, `WA` / `WB`).
 
-**Checking the baseline** (about 30 s; this is what CI runs): `python tools/ci_check.py` regenerates the schematic, runs every netlist in ngspice, and re-measures the headline numbers and the loop stability margins against the values stated in the README.
+**Checking the baseline** (about 30 s; this is what CI runs): `python tools/ci_check.py` regenerates the schematic, runs every netlist in ngspice, checks that the tube constants copied into the netlist (`KGA` / `KGB`) and into `make_figures.py` (`NOM`) still match `models/tubes_amp.inc`, and re-measures the headline numbers and the loop stability margins against the values stated in the README.
 
 **Regenerating the figures** (needs [ngspice](https://ngspice.sourceforge.io/) and Python with numpy and matplotlib):
 

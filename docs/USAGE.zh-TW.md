@@ -60,7 +60,7 @@ mc34b-mod/
 
 16. 功率管擬合：`python tools/fit_tubes.py` 會讀 `docs/data/tube_curves/*.csv`、擬合、印出參數並與 ngspice 的子電路核對，再畫圖 22（需要 scipy）。擬合結果要手動寫回 `models/tubes_amp.inc` 的 `PARAMS:`，並重新調整偏壓（`VB`、`WA` / `WB`）。
 
-**檢查基準**（約 30 秒，CI 執行的就是這個）：`python tools/ci_check.py` 會重新產生電路圖、用 ngspice 執行每個網表，並重新量測主要數字與迴路穩定裕度，與 README 所列的數值比對。
+**檢查基準**（約 30 秒，CI 執行的就是這個）：`python tools/ci_check.py` 會重新產生電路圖、用 ngspice 執行每個網表，確認複製到網表（`KGA` / `KGB`）與 `make_figures.py`（`NOM`）的管子常數仍與 `models/tubes_amp.inc` 一致，並重新量測主要數字與迴路穩定裕度，與 README 所列的數值比對。
 
 **重新產生圖表**（需要 [ngspice](https://ngspice.sourceforge.io/) 與 Python 的 numpy、matplotlib）：
 

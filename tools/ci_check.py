@@ -11,9 +11,11 @@ and fails if one has drifted:
 
   1. the LTspice schematic regenerates from the netlist with 0 mismatches;
   2. every netlist in simulations/ltspice/ runs in ngspice;
-  3. operating point, gain, bandwidth, damping factor, THD at 10 W and power
+  3. the tube constants copied out of models/tubes_amp.inc (the netlist's
+     KGA / KGB, NOM in make_figures.py) still match the model file;
+  4. operating point, gain, bandwidth, damping factor, THD at 10 W and power
      at 1 % THD match the README within the tolerances below;
-  4. loop stability into 4 ohm, the estimated ELT 10 and no load meets the
+  5. loop stability into 4 ohm, the estimated ELT 10 and no load meets the
      pass marks used throughout the write-up (phase margin >= 20 deg, gain
      margin >= 3 dB).
 
@@ -83,6 +85,42 @@ def check_netlists():
         report(name, ok, "ran" if ok else (bad.group(0) if bad else "no result"))
 
 
+def subckt_defaults():
+    """{model name: {param: float}} from the PARAMS: defaults in models/tubes_amp.inc."""
+    txt = open(os.path.join(mf.ROOT, "models", "tubes_amp.inc"), encoding="utf-8").read()
+    out = {}
+    for name, pars in re.findall(r"(?im)^\.SUBCKT\s+(\S+)[^\n]*?PARAMS:([^\n]*)", txt):
+        out[name] = {k.upper(): float(v) for k, v in re.findall(r"(\w+)=([-+\d.eE]+)", pars)}
+    return out
+
+
+def check_model_sync():
+    """The tube constants copied out of tubes_amp.inc must still match it.
+
+    KG1 and MU of the tubes are repeated in two places that the netlist does not
+    read back from the model: the netlist's KGA / KGB (instances override the
+    6P3S-E default with KG1={KGA}) and NOM in make_figures.py (the nominal values
+    the tube-spread study scales).  CLAUDE.md asks for all three to be updated
+    together after tools/fit_tubes.py; a missed copy would not stop any netlist
+    from running, it would silently simulate a different tube.
+    """
+    print("tube constants vs models/tubes_amp.inc")
+    models = subckt_defaults()
+    cir = open(mf.CIR, encoding="utf-8").read()
+    inst = dict(re.findall(r"(?im)^(X\d+)\s+(?:\S+\s+){3,4}?(6N1|6N2|6P3S-E|6P3P)\b", cir))
+    for ref, nom in mf.NOM.items():
+        model = inst.get(ref)
+        if model is None:
+            report(f"NOM {ref}", False, "no such tube instance in amp_channel_v1.cir")
+            continue
+        bad = [f"{k} {v:g} != {models[model][k]:g}" for k, v in nom.items() if abs(v - models[model][k]) > 1e-9]
+        report(f"NOM {ref} ({model})", not bad, "; ".join(bad) or "KG1 / MU match")
+    kg1 = models["6P3S-E"]["KG1"]
+    for p in ("KGA", "KGB"):
+        v = mf.param(p)
+        report(f"netlist {p}", v == kg1, f"{v:g} (6P3S-E KG1 {kg1:g})")
+
+
 def check_baseline():
     print("baseline v1.5 against the README")
     op = mf.channel_op()
@@ -112,6 +150,7 @@ def check_stability():
 if __name__ == "__main__":
     check_schematic()
     check_netlists()
+    check_model_sync()
     check_baseline()
     check_stability()
     if failures:
