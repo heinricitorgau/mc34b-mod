@@ -54,7 +54,7 @@ mc34b-mod/
 11. 負載：`RL` 是電阻負載（`1e6` = 不接），容性負載可在網表加一行 `CLD out 0 2u`。迴路增益的量法見 `tools/make_figures.py` 的 `loop_gain()`。
 12. 接 ELT 10 估計模型：`.param SPK=1` 並把 `RL` 設成 `1e6`。喇叭參數在 `models/elt10_est.inc` 的註解與 `PARAMS:` 中，可自行修改。
 13. OPT 繞組電容：`CPP`（屏對屏）、`CPS`（初次級，平均分到兩端）；預設 1 pF = 不加。例：`.param CPP=300p CPS=1n`。屏對屏 RC 是 `RPZ`、`CPZ`（`RPZ=1e9` = 拿掉，即 v1.4）。
-14. 圖形化電路圖：LTspice 開啟 `simulations/ltspice/amp_channel_v1.asc`（同資料夾的 `mc34b_*.asy` 是管子與喇叭的符號）。每個接腳都用網路標籤（net label）連到網表的節點名稱，所以畫面上沒有導線，但電路與 `.cir` 完全相同。它由 `python tools/make_schematic.py` 從 `.cir` 產生，並會自動反向比對每個元件的節點；改電路請改 `.cir` 再重新產生。
+14. 圖形化電路圖：LTspice 開啟 `simulations/ltspice/amp_channel_v1.asc`（同資料夾的 `mc34b_*.asy` 是管子與喇叭的符號）。每個接腳都用網路標籤（net label）連到網表的節點名稱，所以畫面上沒有導線，但電路與 `.cir` 完全相同。它由 `python tools/make_schematic.py` 從 `.cir` 產生，並會把電路圖讀回來與網表比對（每個元件的節點、數值、AC 數值與子電路參數，元件數量，以及每一行指令）；改電路請改 `.cir` 再重新產生。
 
 15. OPT 鐵心飽和：`amp_channel_v1_sat.cir`，或在腳本中用 `channel(OPT="sat", LSAT=..., LMUL=..., IDCX=...)`（§4.10）。長時間的掃描可設環境變數 `MF_CACHE=<資料夾>`，把每次 ngspice 的結果存起來，中斷後重跑會跳過已完成的部分。
 

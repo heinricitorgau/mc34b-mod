@@ -124,7 +124,13 @@ def build():
 
 
 def check(elems, directives):
-    """Re-derive every element's nodes from the .asc (flags at pin coordinates) and compare."""
+    """Re-derive every element and directive from the .asc and compare it with the netlist.
+
+    Nodes come from the flags at each symbol's pin coordinates; instance name,
+    value, AC value (Value2) and the subcircuit parameters (SpiceLine, e.g.
+    KG1={KGA}) from the SYMATTR lines; directives from the "!" TEXT lines, in
+    order.  A part or directive missing from either side counts as a mismatch.
+    """
     lines = open(ASC, encoding="utf-8").read().split("\n")
     flags = {}
     for l in lines:
@@ -141,17 +147,26 @@ def check(elems, directives):
             k, v = l[8:].split(" ", 1)
             cur[k] = v
     errors = 0
+    if len(parts) != len(elems):
+        errors += 1
+        print(f"  MISMATCH part count: netlist {len(elems)}, schematic {len(parts)}")
     for e, p in zip(elems, parts):
         pins = BUILTIN.get(p["sym"]) or [(px, py) for _, px, py, _ in CUSTOM[p["sym"]]]
         nodes = [flags.get((p["x"] + px, p["y"] + py)) for px, py in pins]
-        if p["InstName"] != e["name"] or nodes != e["nodes"] or p["Value"] != e["value"]:
+        if (p.get("InstName") != e["name"] or nodes != e["nodes"] or p.get("Value") != e["value"]
+                or p.get("Value2", "") != e.get("value2", "")
+                or p.get("SpiceLine", "") != e.get("spiceline", "")):
             errors += 1
             print("  MISMATCH", e, p, nodes)
-    ndir = sum(1 for l in lines if l.startswith("TEXT") and " !" in l)
-    print(f"  {len(elems)} parts, {len(flags)} net labels, {ndir} directives; {errors} mismatches")
-    assert ndir == len(directives)
+    texts = [l.split(" !", 1)[1] for l in lines if l.startswith("TEXT") and " !" in l]
+    if texts != directives:
+        errors += 1
+        missing = [d for d in directives if d not in texts]
+        extra = [t for t in texts if t not in directives]
+        print(f"  MISMATCH directives: netlist {len(directives)}, schematic {len(texts)}; "
+              f"missing {missing}, extra {extra}" + ("" if missing or extra else " (order differs)"))
+    print(f"  {len(elems)} parts, {len(flags)} net labels, {len(texts)} directives; {errors} mismatches")
     return errors
-
 
 if __name__ == "__main__":
     write_symbols()
